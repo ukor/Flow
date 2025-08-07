@@ -15,11 +15,6 @@ pub struct Query {
 }
 
 
-pub struct Response<T> {
-    data: T,
-}
-
-
 impl Query {
 
     pub fn from_target (target: QueryTarget,) -> Query {
@@ -41,3 +36,11 @@ impl Query {
     }
 
 }
+
+/// Response encapsulates a response from the storage layer
+
+pub struct Response<T> {
+    data: T,
+}
+
+
