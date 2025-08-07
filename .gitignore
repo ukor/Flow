@@ -1,0 +1,86 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Documentation build
+docs/_build/
