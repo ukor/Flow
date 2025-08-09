@@ -8,35 +8,62 @@ pub trait EventListener {
 }
 
 
-pub trait EventSource {
+#[derive(Default)]
+pub struct EventListenerManager {
+    listeners: Vec<Box<dyn EventListener>>,
+}
 
-    // Implementor must provide access to listeners storage
-    fn get_listeners(&self) -> &Vec<Box<dyn EventListener>>;
-    fn get_listeners_mut(&mut self) -> &mut Vec<Box<dyn EventListener>>;
 
+impl EventListenerManager {
     
-    // Default implementations that use the storage
-    fn subscribe(&mut self, listener: Box<dyn EventListener>) {
-        self.get_listeners_mut().push(listener);
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    
-    fn publish(&self, event: &Event) -> Result<(), Box<dyn Error>> {
-        for listener in self.get_listeners() {
+    pub fn subscribe(&mut self, listener: Box<dyn EventListener>) {
+        self.listeners.push(listener);
+    }
+
+    pub fn publish(&self, event: &Event) -> Result<(), Box<dyn Error>> {
+        for listener in &self.listeners {
             listener.handle(event)?;
         }
         Ok(())
     }
 
-    
-    fn unsubscribe_all(&mut self) {
-        self.get_listeners_mut().clear();
+    pub fn listener_count(&self) -> usize {
+        self.listeners.len()
     }
 
-    
-    fn listener_count(&self) -> usize {
-        self.get_listeners().len()
+    pub fn unsubscribe_all(&mut self) {
+        self.listeners.clear();
     }
-    
 
 }
+
+
+pub trait EventSource {
+
+    fn event_manager(&self) -> &EventListenerManager;
+
+    fn event_manager_mut(&mut self) -> &mut EventListenerManager;
+
+    fn subscribe(&mut self, listener: Box<dyn EventListener>) {
+        self.event_manager_mut().subscribe(listener);
+    }
+
+    fn publish(&self, event: &Event) -> Result<(), Box<dyn Error>> {
+        self.event_manager().publish(event)
+    }
+
+    fn unsubscribe_all(&mut self) {
+        self.event_manager_mut().unsubscribe_all();
+    }
+
+    fn listener_count(&self) -> usize {
+        self.event_manager().listener_count()
+    }
+
+}
+
+

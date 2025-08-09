@@ -1,7 +1,5 @@
-pub mod bootstrap;
-
-
 use std::error::Error;
+use node::bootstrap;
 
 
 fn main() -> Result<(), Box<dyn Error>>{

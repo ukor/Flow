@@ -21,11 +21,11 @@ pub struct NodeData {
 
 
 #[derive(Debug, Serialize, Deserialize)]
-struct AuthMetadata {
-    schema: String,
-    did: String,
-    created_at: String,
-    pub_key_multibase: String,
+pub struct AuthMetadata {
+    pub schema: String,
+    pub did: String,
+    pub created_at: String,
+    pub pub_key_multibase: String,
 }
 
 
@@ -62,14 +62,14 @@ pub fn get_flow_config_dir() -> String {
 }
 
 
-fn initialize_config_dir(dir: &str) -> Result<NodeData, Box<dyn Error>>{
+pub fn initialize_config_dir(dir: &str) -> Result<NodeData, Box<dyn Error>>{
     let p = paths(dir);
     let _created = create_directory(&p.config_dir)?;
 
     if p.auth_file.exists() {
         return load_existing(&p);
     }
-    
+
     bootstrap_new(&p)
 }
 
