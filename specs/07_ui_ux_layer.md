@@ -1,4 +1,4 @@
-# Flow User Interface / UX Layer (3.10)
+# Flow User Interface / UX Layer
 
 ## Role & Goals
 

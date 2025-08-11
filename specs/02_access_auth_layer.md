@@ -1,4 +1,4 @@
-# Flow Access & Auth Layer (3.6)
+# Flow Access & Auth Layer
 
 ## Design Goals
 

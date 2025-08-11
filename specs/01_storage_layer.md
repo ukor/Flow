@@ -1,4 +1,4 @@
-# Flow Storage Layer (3.4)
+# Flow Storage Layer
 
 ## Design Goals
 

@@ -1,4 +1,4 @@
-# Flow Network Layer (3.7)
+# Flow Network Layer
 
 ## Design Goals
 

@@ -1,4 +1,4 @@
-# Flow Compute Layer (3.5)
+# Flow Compute Layer
 
 ## Role & Goals
 

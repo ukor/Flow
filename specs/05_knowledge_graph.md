@@ -1,4 +1,4 @@
-# Flow Knowledge Graph (KG) & Model Context Protocol (MCP) Layer (3.3)
+# Flow Knowledge Graph (KG)
 
 ## Role & Goals
 

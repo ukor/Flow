@@ -1,4 +1,4 @@
-# Flow Incentive Layer (3.9)
+# Flow Incentive Layer
 
 ## Role & Goals
 

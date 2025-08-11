@@ -1,4 +1,4 @@
-# Flow Coordination & Sync Layer (3.8)
+# Flow Coordination & Sync Layer
 
 ## Design Goals
 

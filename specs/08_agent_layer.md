@@ -1,4 +1,4 @@
-# Flow Agent Layer (3.1)
+# Flow Agent Layer
 
 ## Role & Goals
 

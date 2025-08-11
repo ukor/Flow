@@ -1,5 +1,5 @@
 
-## MCP Integration
+# Flow Model Context Protocol (MCP) Layer
 
 *   **Manifests:** Define models/tools.
     *   Signed, content-addressed (CID).

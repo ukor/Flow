@@ -1,4 +1,4 @@
-# Flow Execution Layer (3.2)
+# Flow Execution Layer
 
 ## Role & Goals
 
