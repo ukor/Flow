@@ -1,7 +1,7 @@
-use log::{info};
+use crate::{api::node::Node, bootstrap::{self, config::Config}};
 use errors::AppError;
+use log::info;
 use migration::{Migrator, MigratorTrait};
-use crate::bootstrap::{self, config::Config};
 use sea_orm::{ConnectOptions, DatabaseConnection};
 
 
@@ -13,12 +13,18 @@ pub async fn run() -> Result<(), AppError> {
 
     // Initialize foundational services like logging here (if any).
     // Bootstrap the node identity, file system, etc.
-    let _node_data = bootstrap::init::initialize()?;
+    let node_data = bootstrap::init::initialize()?;
     info!("Node initialized successfully.");
 
     // Set up the database connection and run migrations.
-    let _db_conn = setup_database(&config).await?;
+    let db_conn = setup_database(&config).await?;
     info!("Database setup and migrations complete.");
+
+
+    let node = Node::new(
+        node_data, 
+        db_conn
+    );
 
     // --- Application is now running ---
     // Start server, event loops, or other long-running

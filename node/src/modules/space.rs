@@ -1,0 +1,14 @@
+use errors::AppError;
+use sea_orm::DatabaseConnection;
+
+use entity::space::Entity as Space;
+
+
+
+pub fn new_space(db: &DatabaseConnection, dir: &str) -> Result<(), AppError> {
+    
+
+    Ok(())
+}
+
+
