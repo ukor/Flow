@@ -1,25 +1,16 @@
 use std::collections::HashMap;
+use serde_json::Value;
 
 
 pub enum EventType {
-    FILE_CREATED,
-    FILE_MODIFIED,
-    FILE_DELETED,
-}
-
-
-pub enum Value {
-    String(String),
-    Integer(i64),
-    Float(f64),
-    Boolean(bool),
-    Array(Vec<Value>),
-    Object(HashMap<String, Value>),
+    FileCreated,
+    FileModified,
+    FileDeleted,
 }
 
 
 pub struct Event {
-    eventType: EventType,
-    properties: HashMap<String, Value>,
+    pub event_type: EventType,
+    pub properties: HashMap<String, Value>,
 }
 

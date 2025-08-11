@@ -2,6 +2,7 @@ use std::{env, error::Error, fs, io::Write};
 use std::path::{Path, PathBuf};
 use directories::BaseDirs;
 
+use errors::AppError;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
@@ -14,9 +15,9 @@ use multibase::Base;
 
 
 pub struct NodeData {
-    id: String,
-    private_key: Vec<u8>,
-    public_key: Vec<u8>,
+    pub id: String,
+    pub private_key: Vec<u8>,
+    pub public_key: Vec<u8>,
 }
 
 
@@ -33,13 +34,12 @@ struct Paths {
     config_dir: PathBuf,
     keystore_dir: PathBuf,
     auth_file: PathBuf,
-    secure_key_param: PathBuf,
     priv_key_file: PathBuf,
     pub_key_file: PathBuf,
 }
 
 
-pub fn initialize() -> Result<NodeData, Box<dyn Error>> {
+pub fn initialize() -> Result<NodeData, AppError> {
     let config_dir = get_flow_config_dir();
     initialize_config_dir(&config_dir)
 }
@@ -62,12 +62,14 @@ pub fn get_flow_config_dir() -> String {
 }
 
 
-pub fn initialize_config_dir(dir: &str) -> Result<NodeData, Box<dyn Error>>{
+pub fn initialize_config_dir(dir: &str) -> Result<NodeData, AppError>{
     let p = paths(dir);
-    let _created = create_directory(&p.config_dir)?;
+    let _created = create_directory(&p.config_dir)
+        .map_err(|e| AppError::Bootstrap(format!("Failed to create directory. {}", e)))?;
 
     if p.auth_file.exists() {
-        return load_existing(&p);
+        return load_existing(&p)
+            .map_err(|e| AppError::Bootstrap(format!("Error while loading existing configurations. {}", e)));
     }
 
     bootstrap_new(&p)
@@ -82,7 +84,6 @@ fn paths(dir: &str) -> Paths {
         config_dir: config_dir.clone(),
         keystore_dir: keystore_dir.clone(),
         auth_file: config_dir.join("auth.json"),
-        secure_key_param: config_dir.join("secure-key-param.priv"),
         priv_key_file: keystore_dir.join("ed25519.priv"),
         pub_key_file: keystore_dir.join("ed25519.pub"),
     }
@@ -143,13 +144,17 @@ fn load_existing(p: &Paths) -> Result<NodeData, Box<dyn Error>> {
 }
 
 
-fn bootstrap_new(p: &Paths) -> Result<NodeData, Box<dyn Error>> {
-    ensure_keystore_dir(p)?;
+fn bootstrap_new(p: &Paths) -> Result<NodeData, AppError> {
+    ensure_keystore_dir(p)
+        .map_err(|e| AppError::Bootstrap(format!("Failed to setup Keystore directories. {}", e)))?;
 
     let (priv_key_bytes, pub_key_bytes, pub_key_multibase, did) = generate_keys_and_did();
 
-    write_atomic_with_mode(&p.priv_key_file, &priv_key_bytes, 0o600)?;
-    write_atomic_with_mode(&p.pub_key_file, &pub_key_bytes, 0o644)?;
+    write_atomic_with_mode(&p.priv_key_file, &priv_key_bytes, 0o600)
+        .map_err(|e| AppError::Bootstrap(format!("Failed to write private key: {}", e)))?;
+
+    write_atomic_with_mode(&p.pub_key_file, &pub_key_bytes, 0o644)
+        .map_err(|e| AppError::Bootstrap(format!("Failed to write public key: {}", e)))?;
 
     let meta = AuthMetadata {
         schema: "flow-auth/v1".to_string(),
@@ -158,8 +163,11 @@ fn bootstrap_new(p: &Paths) -> Result<NodeData, Box<dyn Error>> {
         pub_key_multibase: pub_key_multibase,
     };
 
-    let json = serde_json::to_string_pretty(&meta)?;
-    write_atomic_with_mode(&p.auth_file, json.as_bytes(), 0o644)?;
+    let json = serde_json::to_string_pretty(&meta)
+        .map_err(|e| AppError::Bootstrap(format!("Failed to serialize auth metadata: {}", e)))?;
+
+    write_atomic_with_mode(&p.auth_file, json.as_bytes(), 0o644)
+        .map_err(|e| AppError::Bootstrap(format!("Failed to write auth file: {}", e)))?;
 
     Ok(
         NodeData { 

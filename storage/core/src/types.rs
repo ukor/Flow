@@ -1,17 +1,18 @@
 use std::collections::HashMap;
+use serde_json::Value;
 
 
-
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum QueryTarget {
-    KV_STORE,
+    KV,
     SQLITE,
     GRAPH,
 }
 
 
 pub struct Query {
-    target: QueryTarget,
-    map: HashMap<String, String>,
+    pub target: QueryTarget,
+    pub map: HashMap<String, String>,
 }
 
 
@@ -38,9 +39,9 @@ impl Query {
 }
 
 /// Response encapsulates a response from the storage layer
-
-pub struct Response<T> {
-    data: T,
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct Response {
+    data: Value,
 }
 
 
