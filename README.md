@@ -16,17 +16,17 @@ Flow is a decentralized coordination platform enabling agents and users to co-cr
 
 ## Layered Architecture
 
-1.  [**Storage Layer**](./01_storage_layer.md): Implements the local-first, persistent storage using CRDTs over content-addressed systems (like IPFS/BadgerDB).
-2.  [**Access & Auth Layer**](./02_access_auth_layer.md): Manages identity (DIDs) and permissions using capability-based systems like UCANs.
-3.  [**Network Layer**](./03_network_layer.md): Handles peer-to-peer discovery, communication, data synchronization, and transport, secured by the Auth Layer (UCANs).
-4.  [**Coordination & Sync Layer**](./04_coordination_sync_layer.md): Ensures state consistency across different agents and nodes using the underlying CRDT mechanisms.
-5.  [**Knowledge Graph Layer**](./05_knowledge_graph_mcp.md): Provides the semantic context (KG) for data. 
-6. [**MCP Layer**](./06_mcp.md): Defines how external models/tools (via Model Context Protocol) interact with user content.
-7.  [**User Interface / UX Layer**](./07_ui_ux_layer.md): Provides the means for users to interact with the system, inspect the graph, manage agents, delegate tasks, etc.
-8.  [**Agent Layer**](./08_agent_layer.md): Manages agent lifecycles (Sense→Learn→Reason→Predict→Act) and ensures their actions are explainable.
-9.  [**Execution Layer**](./09_execution_layer.md): Handles the definition and running of workflows as Directed Acyclic Graphs (DAGs), managing signed state transitions.
-10.  [**Compute Layer**](./10_compute_layer.md): Executes the actual computational tasks defined in the Execution Layer, potentially using various backends (local, distributed like Bacalhau) and supporting verifiable computation.
-11. [**Incentive Layer**](./11_incentive_layer.md): Defines and manages programmable rewards and contribution tracking based on provenance data in the knowledge graph.
+1.  [**Storage Layer**](./specs/01_storage_layer.md): Implements the local-first, persistent storage using CRDTs over content-addressed systems (like IPFS/BadgerDB).
+2.  [**Access & Auth Layer**](./specs/02_access_auth_layer.md): Manages identity (DIDs) and permissions using capability-based systems like UCANs.
+3.  [**Network Layer**](./specs/03_network_layer.md): Handles peer-to-peer discovery, communication, data synchronization, and transport, secured by the Auth Layer (UCANs).
+4.  [**Coordination & Sync Layer**](./specs/04_coordination_sync_layer.md): Ensures state consistency across different agents and nodes using the underlying CRDT mechanisms.
+5.  [**Knowledge Graph Layer**](./specs/05_knowledge_graph.md): Provides the semantic context (KG) for data.
+6. [**MCP Layer**](./specs/06_mcp.md): Defines how external models/tools (via Model Context Protocol) interact with user content.
+7.  [**User Interface / UX Layer**](./specs/07_ui_ux_layer.md): Provides the means for users to interact with the system, inspect the graph, manage agents, delegate tasks, etc.
+8.  [**Agent Layer**](./specs/08_agent_layer.md): Manages agent lifecycles (Sense→Learn→Reason→Predict→Act) and ensures their actions are explainable.
+9.  [**Execution Layer**](./specs/09_execution_layer.md): Handles the definition and running of workflows as Directed Acyclic Graphs (DAGs), managing signed state transitions.
+10.  [**Compute Layer**](./specs/10_compute_layer.md): Executes the actual computational tasks defined in the Execution Layer, potentially using various backends (local, distributed like Bacalhau) and supporting verifiable computation.
+11. [**Incentive Layer**](./specs/11_incentive_layer.md): Defines and manages programmable rewards and contribution tracking based on provenance data in the knowledge graph.
 
 
 ## Flow of Activity
@@ -40,3 +40,4 @@ Flow is a decentralized coordination platform enabling agents and users to co-cr
 7.  Results logged, verified.
 8.  Rewards triggered by provenance/policy.
 9.  Explore via graph UI.
+
