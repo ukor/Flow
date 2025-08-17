@@ -41,3 +41,105 @@ Flow is a decentralized coordination platform enabling agents and users to co-cr
 8.  Rewards triggered by provenance/policy.
 9.  Explore via graph UI.
 
+
+
+
+
+## Running the Codebase
+
+This project uses a Makefile to simplify common development tasks. The Makefile is designed to handle multiple binary packages within the Rust workspace.
+
+### Prerequisites
+
+- Rust and Cargo installed
+- Make utility
+
+### Available Commands
+
+#### Package-Specific Commands
+
+These commands require specifying a package using `pkg=<package_name>`:
+
+```bash
+# Run a specific package
+make run pkg=<package_name>
+
+# Build a specific package (development)
+make build pkg=<package_name>
+
+# Build a specific package (release/optimized)
+make build-release pkg=<package_name>
+```
+
+#### Workspace-Wide Commands
+
+These commands operate on the entire workspace:
+
+```bash
+# Run all tests across the workspace
+make test
+
+# Check all packages for compilation errors
+make check
+
+# Clean all build artifacts
+make clean
+
+# Display help information
+make help
+```
+
+### Available Packages
+
+The following packages are available in this workspace:
+
+- `node` - Main node implementation
+- `entity` - Entity definitions
+- `errors` - Error handling
+- `event` - Event system
+- `storage` - Storage core functionality
+
+### Usage Examples
+
+```bash
+# Run the main node
+make run pkg=node
+
+# Run with debug logging
+make run pkg=node LOG_LEVEL=debug
+
+# Run with custom log configuration
+make run pkg=node LOG_LEVEL=node=debug,sqlx=warn
+
+# Build the node for development
+make build pkg=node
+
+# Build the node for production
+make build-release pkg=node
+
+# Run all tests
+make test
+
+# Check for compilation errors
+make check
+
+# Clean build artifacts
+make clean
+```
+
+### Environment Variables
+
+- `LOG_LEVEL` - Controls logging verbosity (default: `info`)
+  - Can be set to standard levels: `error`, `warn`, `info`, `debug`, `trace`
+  - Supports per-crate configuration: `crate1=level1,crate2=level2`
+
+### Getting Help
+
+To see all available commands and usage information:
+
+```bash
+make help
+```
+
+This will display detailed usage instructions and examples for all available commands.
+

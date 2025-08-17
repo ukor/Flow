@@ -40,3 +40,4 @@ Flow is a decentralized coordination platform enabling agents and users to co-cr
 7.  Results logged, verified.
 8.  Rewards triggered by provenance/policy.
 9.  Explore via graph UI.
+
