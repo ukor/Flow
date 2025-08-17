@@ -36,7 +36,7 @@ Flow is a decentralized coordination platform enabling agents and users to co-cr
 3.  Discover and connect to Flow network.
 4.  Grant access control and permissions to objects.
 5.  Users can spin up Agents connected to their knowledge graphs. 
-6.  Agents execute via SLRPA.
+6.  Agents execute via SLRPA (Sense → Learn → Reason → Predict → Act).
 7.  Results logged, verified.
 8.  Rewards triggered by provenance/policy.
 9.  Explore via graph UI.
