@@ -18,7 +18,6 @@ All types of contributions are encouraged and valued. See the [Table of Contents
 - [I Want To Contribute](#i-want-to-contribute)
 - [Reporting Bugs](#reporting-bugs)
 - [Suggesting Enhancements](#suggesting-enhancements)
-- [Your First Code Contribution](#your-first-code-contribution)
 - [Improving The Documentation](#improving-the-documentation)
 - [Styleguides](#styleguides)
 - [Commit Messages](#commit-messages)
@@ -51,8 +50,18 @@ We will then take care of the issue as soon as possible.
 
 ## I Want To Contribute
 
+We use GitHub issues to track feature requests, bugs and errors. If you run into an issue with the project:
+
+- Open an [Issue](https://github.com/Flow-Research/Flow/issues/new/choose).
+- Within the issue description, describe the issue and the proposed solution.
+- For bugs, Please provide as much context as possible and describe the *reproduction steps* that someone else can follow to recreate the issue on their own. This usually includes your code. For good bug reports you should isolate the problem and create a reduced test case.
+- Provide the information you collected in the previous section.
+- Once it's filled, The project team will label the issue accordingly.
+
+
 > ### Legal Notice 
 > When contributing to this project, you must agree that you have authored 100% of the content, that you have the necessary rights to the content and that the content you contribute may be provided under the project license.
+
 
 ### Reporting Bugs
 
@@ -76,20 +85,6 @@ A good bug report shouldn't leave others needing to chase you up for more inform
 #### How Do I Submit a Good Bug Report?
 
 > You must never report security related issues, vulnerabilities or bugs including sensitive information to the issue tracker, or elsewhere in public. Instead sensitive bugs must be sent by email to this [email](mailto:flow189368@gmail.com).
-
-
-We use GitHub issues to track bugs and errors. If you run into an issue with the project:
-
-- Open an [Issue](https://github.com/Flow-Research/Flow/issues/new/choose). (Since we can't be sure at this point whether it is a bug or not, we ask you not to talk about a bug yet and not to label the issue.)
-- Explain the behavior you would expect and the actual behavior.
-- Please provide as much context as possible and describe the *reproduction steps* that someone else can follow to recreate the issue on their own. This usually includes your code. For good bug reports you should isolate the problem and create a reduced test case.
-- Provide the information you collected in the previous section.
-
-Once it's filed:
-
-- The project team will label the issue accordingly.
-- A team member will try to reproduce the issue with your provided steps. If there are no reproduction steps or no obvious way to reproduce the issue, the team will ask you for those steps and mark the issue as `needs-repro`. Bugs with the `needs-repro` tag will not be addressed until they are reproduced.
-- If the team is able to reproduce the issue, it will be marked `needs-fix`, as well as possibly other tags (such as `critical`), and the issue will be left to be [implemented by someone](#your-first-code-contribution).
 
 
 
@@ -119,14 +114,46 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/Flow-R
 
 
 
-### Your First Code Contribution
-
 
 ### Improving The Documentation
+This repository is open source. Feel free to suggest improvements to the documentation. 
 
 
 ## Styleguides
+
+
 ### Commit Messages
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+#### Standard Types:
+`feat`: New feature
+`fix`: Bug fix
+`docs`: Documentation changes
+`style`: Code style changes (formatting, whitespace)
+`refactor`: Code refactoring (no functional changes)
+`perf`: Performance improvements
+`test`: Adding or updating tests
+`chore`: Maintenance tasks, build changes
+`ci`: CI/CD changes
+`build`: Build system changes
+`revert`: Reverting previous commits
+
+Example:
+```
+feat(compiler): add support for custom decorators
+
+Implement custom decorator support in the Angular compiler
+to allow third-party libraries to extend framework functionality.
+
+Closes #12345
+```
 
 
 ## Join The Project Team
