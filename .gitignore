@@ -1,5 +1,6 @@
 # Rust
-/target/
+target
+back-end/target
 **/*.rs.bk
 *.pdb
 
@@ -83,3 +84,6 @@ out/
 
 # Documentation build
 docs/_build/
+
+.nx/
+
