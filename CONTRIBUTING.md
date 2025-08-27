@@ -119,11 +119,9 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/Flow-R
 This repository is open source. Feel free to suggest improvements to the documentation. 
 
 
-## Styleguides
-
 
 ### Commit Messages
-
+Here is the format for commit messages.
 ```
 <type>[optional scope]: <description>
 
@@ -133,17 +131,17 @@ This repository is open source. Feel free to suggest improvements to the documen
 ```
 
 #### Standard Types:
-`feat`: New feature
-`fix`: Bug fix
-`docs`: Documentation changes
-`style`: Code style changes (formatting, whitespace)
-`refactor`: Code refactoring (no functional changes)
-`perf`: Performance improvements
-`test`: Adding or updating tests
-`chore`: Maintenance tasks, build changes
-`ci`: CI/CD changes
-`build`: Build system changes
-`revert`: Reverting previous commits
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, whitespace)
+- `refactor`: Code refactoring (no functional changes)
+- `perf`: Performance improvements
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks, build changes
+- `ci`: CI/CD changes
+- `build`: Build system changes
+- `revert`: Reverting previous commits
 
 Example:
 ```
