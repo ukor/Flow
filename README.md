@@ -144,6 +144,9 @@ This will display detailed usage instructions and examples for all available com
 
 ---
 
+## Contributing
+Go over the [Contributing](CONTRIBUTING.md) guide to learn how you can contribute. 
+
 
 ## License
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
