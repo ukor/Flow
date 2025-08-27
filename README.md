@@ -43,8 +43,6 @@ Flow is a decentralized coordination platform enabling agents and users to co-cr
 
 
 
-
-
 ## Running the Codebase
 
 This project uses a Makefile to simplify common development tasks. The Makefile is designed to handle multiple binary packages within the Rust workspace.
@@ -143,3 +141,13 @@ make help
 
 This will display detailed usage instructions and examples for all available commands.
 
+
+---
+
+
+## License
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+
+## Where to get help?
+Join the Discord community and chat with the development team: [here](https://discord.gg/JmkvP6xKFW)
