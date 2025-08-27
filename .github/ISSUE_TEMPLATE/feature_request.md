@@ -7,13 +7,13 @@ assignees: ''
 
 ---
 
-**Description of the problem.**
+## **Description of the problem.**
 A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
 
-**Description of the solution.**
+## **Description of the solution.**
 A clear and concise description of what you want to happen.
 
-**Additional context**
+## **Additional context**
 Add any other context or screenshots about the feature request here.
 
 
