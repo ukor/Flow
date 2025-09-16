@@ -1,0 +1,15 @@
+{
+  // Workspace-wide
+  // "editor.formatOnSave": true,
+
+  // Rust-specific
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+
+    // Format on save
+    "editor.formatOnSave": true,
+
+    // Indentation: Each tab indents 4 spaces
+    "editor.tabSize": 4
+  }
+}
