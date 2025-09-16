@@ -2,20 +2,16 @@ use std::error::Error;
 
 use crate::types::Event;
 
-
 pub trait EventListener {
     fn handle(&self, event: &Event) -> Result<(), Box<dyn Error>>;
 }
-
 
 #[derive(Default)]
 pub struct EventListenerManager {
     listeners: Vec<Box<dyn EventListener>>,
 }
 
-
 impl EventListenerManager {
-    
     pub fn new() -> Self {
         Self::default()
     }
@@ -38,12 +34,9 @@ impl EventListenerManager {
     pub fn unsubscribe_all(&mut self) {
         self.listeners.clear();
     }
-
 }
 
-
 pub trait EventSource {
-
     fn event_manager(&self) -> &EventListenerManager;
 
     fn event_manager_mut(&mut self) -> &mut EventListenerManager;
@@ -63,7 +56,4 @@ pub trait EventSource {
     fn listener_count(&self) -> usize {
         self.event_manager().listener_count()
     }
-
 }
-
-

@@ -1,0 +1,4 @@
+{
+  // Recommended install of rust-analyzer
+  "recommendations": ["rust-lang.rust-analyzer"]
+}
