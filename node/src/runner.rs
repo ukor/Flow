@@ -2,6 +2,10 @@ use crate::{
     api::node::Node,
     bootstrap::{self, config::Config},
 };
+use crate::{
+    api::node::Node,
+    bootstrap::{self, config::Config},
+};
 use errors::AppError;
 use log::info;
 use migration::{Migrator, MigratorTrait};
@@ -47,9 +51,13 @@ async fn setup_database(config: &Config) -> Result<DatabaseConnection, AppError>
 
     let connection = sea_orm::Database::connect(opt)
         .await
+    let connection = sea_orm::Database::connect(opt)
+        .await
         .map_err(|db_err| AppError::Storage(Box::new(db_err)))?;
 
     info!("Running database migrations...");
+    Migrator::up(&connection, None)
+        .await
     Migrator::up(&connection, None)
         .await
         .map_err(|db_err| AppError::Migration(Box::new(db_err)))?;
