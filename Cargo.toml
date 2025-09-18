@@ -5,8 +5,9 @@ members = [
     "entity", 
     "errors",
     "event", 
+    "migration",
     "node",
-    "storage/core"
+    "storage/core",
 ]
 
 [workspace.dependencies]
