@@ -1,5 +1,6 @@
 [workspace]
 resolver = "3"
+
 members = [ 
     "entity", 
     "errors",
@@ -7,4 +8,11 @@ members = [
     "node",
     "storage/core"
 ]
+
+[workspace.dependencies]
+sea-orm = { version = "1.1.0", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
+tokio = { version = "1.47.1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
 
