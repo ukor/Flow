@@ -5,13 +5,13 @@ use log::info;
 use sea_orm::DatabaseConnection;
 
 pub struct Node {
-    node_data: NodeData,
+    _node_data: NodeData,
     db: DatabaseConnection,
 }
 
 impl Node {
     pub fn new(node_data: NodeData, db: DatabaseConnection) -> Self {
-        Node { node_data, db }
+        Node { _node_data: node_data, db }
     }
 
     pub async fn create_space(&self, dir: &str) -> Result<(), AppError> {
