@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+members = [ 
+    "entity", 
+    "errors",
+    "event", 
+    "node",
+    "storage/core"
+]
+
