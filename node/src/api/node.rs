@@ -14,9 +14,9 @@ impl Node {
         Node { node_data, db }
     }
 
-    pub fn create_space(&self, dir: &str) -> Result<(), AppError> {
+    pub async fn create_space(&self, dir: &str) -> Result<(), AppError> {
         info!("Setting up space in Directory: {}", dir);
-        space::new_space(&self.db, dir)?;
+        space::new_space(&self.db, dir).await?;
         Ok(())
     }
 }
