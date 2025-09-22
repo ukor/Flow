@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-sea-orm = { workspace = true }
+sea-orm = "1.1.14"

@@ -124,5 +124,4 @@ mod tests {
         let result = generate_space_key("/this/path/definitely/does/not/exist/nowhere");
         assert!(result.is_err(), "Non-existent path should return error");
     }
-
 }

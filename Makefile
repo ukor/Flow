@@ -24,17 +24,17 @@ pkg ?= ""
 .PHONY: run
 run: check-pkg-defined
 	@echo "--> Running package: $(pkg) (log level: $(LOG_LEVEL))"
-	@RUST_LOG=$(LOG_LEVEL) cargo run --package $(pkg)
+	@RUST_LOG=$(LOG_LEVEL) cargo run --manifest-path back-end/Cargo.toml --package $(pkg)
 
 .PHONY: build
 build: check-pkg-defined
 	@echo "--> Building package: $(pkg) (dev)"
-	@cargo build --package $(pkg)
+	@cargo build --manifest-path back-end/Cargo.toml --package $(pkg)
 
 .PHONY: build-release
 build-release: check-pkg-defined
 	@echo "--> Building package: $(pkg) for release (optimized)"
-	@cargo build --release --package $(pkg)
+	@cargo build --release --manifest-path back-end/Cargo.toml --package $(pkg)
 
 
 # --- Workspace-Wide Recipes ---
@@ -42,23 +42,18 @@ build-release: check-pkg-defined
 
 .PHONY: test
 test:
-	@echo "--> Running tests for all packages in the workspace, excluding doc-tests"
-	@cargo test --workspace --tests
-
-.PHONY: doc-test
-doc-test:
-	@echo "--> Running doc tests for all packages in the workspace"
-	@cargo test --workspace --doc
+	@echo "--> Running tests for all packages in the workspace"
+	@cargo test --manifest-path back-end/Cargo.toml --workspace
 
 .PHONY: check
 check:
 	@echo "--> Checking all packages in the workspace"
-	@cargo check --workspace
+	@cargo check --manifest-path back-end/Cargo.toml --workspace
 
 .PHONY: clean
 clean:
 	@echo "--> Cleaning all build artifacts"
-	@cargo clean
+	@cargo clean --manifest-path back-end/Cargo.toml
 
 
 # --- Helper & Default Targets ---
