@@ -211,4 +211,24 @@ This project is part of the Flow ecosystem and follows the same licensing terms.
 
 [🌐 Web Demo](http://localhost:3000) • [📖 Documentation](../../specs/) • [🐛 Report Bug](../../issues) • [💡 Request Feature](../../issues)
 
+## NX Setup
+
+# Individual project commands
+
+nx run flow-web:dev # Start web dev server
+nx run flow-web:electron-dev # Start desktop app development
+
+# Aggregate commands
+
+nx run user-interface:dev-web # Convenience alias for web dev
+nx run user-interface:dev-desktop # Convenience alias for desktop dev
+nx run user-interface:lint-all # Lint both projects
+nx run user-interface:install-all # Install deps for both projects
+nx run user-interface:build-all # Build everything
+
+# Build and package
+
+nx run flow-web:build # Build web assets
+nx run flow-web:electron-pack # Package desktop app
+
 </div>
