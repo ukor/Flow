@@ -48,3 +48,23 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## NX Setup
+
+# Individual project commands
+
+nx run flow-app:start # Start mobile app development
+nx run flow-app:android # Run on Android
+nx run flow-app:ios # Run on iOS
+
+# Aggregate commands
+
+nx run user-interface:dev-mobile # Convenience alias for mobile dev
+nx run user-interface:lint-all # Lint both projects
+nx run user-interface:install-all # Install deps for both projects
+nx run user-interface:build-all # Build everything
+
+# Build and package
+
+nx run flow-app:build-android # Build Android app
+nx run flow-app:build-ios
