@@ -15,8 +15,14 @@ pub struct DbConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct KvConfig {
+    pub path: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct Config {
     pub db: DbConfig,
+    pub kv: KvConfig,
 }
 
 impl Config {
@@ -44,6 +50,8 @@ impl Config {
         };
 
         // --- Parse all variables ---
+
+        // DbConfig
         let database_url = env::var("DATABASE_URL")
             .map_err(|_| AppError::Config("DATABASE_URL must be set".to_string()))?;
 
@@ -53,6 +61,9 @@ impl Config {
         let idle_timeout_secs = get_env_u64("DB_IDLE_TIMEOUT", 600)?;
         let max_lifetime_secs = get_env_u64("DB_MAX_LIFETIME", 1800)?;
         let logging_enabled = get_env_bool("DB_LOGGING_ENABLED", false)?; // <-- Parse the new variable
+
+        // KvConfig
+        let kv_path = env::var("KV_STORE_PATH").unwrap_or("/tmp/flow-kv".to_string());
 
         Ok(Self {
             db: DbConfig {
@@ -64,6 +75,7 @@ impl Config {
                 max_lifetime: Duration::from_secs(max_lifetime_secs),
                 logging_enabled,
             },
+            kv: KvConfig { path: kv_path },
         })
     }
 }

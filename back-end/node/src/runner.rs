@@ -1,11 +1,13 @@
 use crate::{
     api::node::Node,
     bootstrap::{self, config::Config},
+    modules::webauthn::state::AuthState,
 };
 use errors::AppError;
 use log::info;
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectOptions, DatabaseConnection};
+use sled::Db;
 
 pub async fn run() -> Result<(), AppError> {
     let config = Config::from_env()?;
@@ -21,7 +23,12 @@ pub async fn run() -> Result<(), AppError> {
     let db_conn = setup_database(&config).await?;
     info!("Database setup and migrations complete.");
 
-    let _node = Node::new(node_data, db_conn);
+    // Set up KV Store
+    let kv = setup_kv_store(&config).await?;
+
+    let auth_state = AuthState::from_env()?;
+
+    let _node = Node::new(node_data, db_conn, kv, auth_state);
 
     // --- Application is now running ---
     // Start server, event loops, or other long-running
@@ -34,6 +41,8 @@ pub async fn run() -> Result<(), AppError> {
 }
 
 async fn setup_database(config: &Config) -> Result<DatabaseConnection, AppError> {
+    info!("Setting up Database");
+
     let db_config = &config.db;
     let mut opt = ConnectOptions::new(&db_config.url);
 
@@ -55,4 +64,9 @@ async fn setup_database(config: &Config) -> Result<DatabaseConnection, AppError>
         .map_err(|db_err| AppError::Migration(Box::new(db_err)))?;
 
     Ok(connection)
+}
+
+async fn setup_kv_store(config: &Config) -> Result<Db, AppError> {
+    info!("Setting up KVStore");
+    Ok(sled::open(config.kv.path.as_str()).unwrap())
 }

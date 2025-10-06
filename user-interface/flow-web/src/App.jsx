@@ -5,6 +5,12 @@ import ElectronInfo from "./components/ElectronInfo";
 
 function App() {
   const [count, setCount] = useState(0);
+  const [successMessage, setSuccessMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [isAuthenticating, setIsAuthenticating] = useState(false)
+
+  
 
   return (
     <div className="App">

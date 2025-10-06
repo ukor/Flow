@@ -3,12 +3,19 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "space")]
+#[sea_orm(table_name = "pass_key")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub key: String,
-    pub location: String,
+    pub device_id: String,
+    #[sea_orm(column_type = "Blob")]
+    pub credential_id: Vec<u8>,
+    #[sea_orm(column_type = "Blob")]
+    pub public_key: Vec<u8>,
+    pub sign_count: i32,
+    pub attestation: String,
+    #[sea_orm(column_type = "Text")]
+    pub json_data: String,
     pub time_created: DateTimeWithTimeZone,
 }
 
