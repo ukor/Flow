@@ -1,4 +1,5 @@
 use errors::AppError;
+use log::info;
 use std::sync::Arc;
 use webauthn_rs::prelude::*;
 
@@ -23,7 +24,7 @@ impl AuthConfig {
     pub fn from_env() -> Result<Self, AppError> {
         use std::env;
 
-        let rp_id = env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "flow.localhost".to_string());
+        let rp_id = env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "localhost".to_string());
 
         let rp_origin =
             env::var("WEBAUTHN_RP_ORIGIN").unwrap_or_else(|_| "http://localhost:8080".to_string());
@@ -41,6 +42,8 @@ impl AuthConfig {
 impl AuthState {
     /// Create a new AuthState from configuration
     pub fn new(config: AuthConfig) -> Result<Self, AppError> {
+        info!("Initializing WebAuthn authstate");
+
         let rp_origin = Url::parse(&config.rp_origin)
             .map_err(|e| AppError::Config(format!("Invalid WebAuthn origin URL: {}", e)))?;
 

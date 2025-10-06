@@ -1,8 +1,6 @@
-use crate::{api::node::Node, modules::webauthn::state::AuthState};
-use entity::pass_key;
+use crate::api::node::Node;
 use log::info;
 use once_cell::sync::Lazy;
-use pass_key::Entity as PassKey;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use webauthn_rs::prelude::*;
@@ -35,7 +33,7 @@ pub async fn start_registration(node: &Node) -> Result<CreationChallengeResponse
             let mut cache = REG_CACHE.lock().unwrap();
             cache.insert(key, value);
 
-            info!("Registration Successful!");
+            info!("Started Registration process!");
             ccr
         }
         Err(e) => {

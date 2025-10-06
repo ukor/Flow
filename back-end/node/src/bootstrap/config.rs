@@ -4,6 +4,13 @@ use std::str::FromStr;
 use std::{env, time::Duration};
 
 #[derive(Debug, Clone)]
+pub struct ServerConfig {
+    pub rest_port: u16,
+    pub websocket_port: u16,
+    pub host: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct DbConfig {
     pub url: String,
     pub max_connections: u32,
@@ -23,6 +30,7 @@ pub struct KvConfig {
 pub struct Config {
     pub db: DbConfig,
     pub kv: KvConfig,
+    pub server: ServerConfig,
 }
 
 impl Config {
@@ -65,6 +73,11 @@ impl Config {
         // KvConfig
         let kv_path = env::var("KV_STORE_PATH").unwrap_or("/tmp/flow-kv".to_string());
 
+        // ServerConfig
+        let rest_port = get_env_u64("REST_PORT", 8080)? as u16;
+        let websocket_port = get_env_u64("WEBSOCKET_PORT", 8081)? as u16;
+        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+
         Ok(Self {
             db: DbConfig {
                 url: database_url,
@@ -76,6 +89,11 @@ impl Config {
                 logging_enabled,
             },
             kv: KvConfig { path: kv_path },
+            server: ServerConfig {
+                rest_port,
+                websocket_port,
+                host,
+            },
         })
     }
 }

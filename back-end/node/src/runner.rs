@@ -1,5 +1,8 @@
 use crate::{
-    api::node::Node,
+    api::{
+        node::Node,
+        servers::{app_state::AppState, rest, websocket},
+    },
     bootstrap::{self, config::Config},
     modules::webauthn::state::AuthState,
 };
@@ -28,14 +31,28 @@ pub async fn run() -> Result<(), AppError> {
 
     let auth_state = AuthState::from_env()?;
 
-    let _node = Node::new(node_data, db_conn, kv, auth_state);
+    let node = Node::new(node_data, db_conn, kv, auth_state);
+    let app_state = AppState::new(node);
+
+    info!("Starting servers...");
 
     // --- Application is now running ---
     // Start server, event loops, or other long-running
     // tasks, using the initialized objects.
+
+    tokio::select! {
+        result = rest::start(&app_state, &config) => {
+            result?;
+        }
+        result = websocket::start(&app_state, &config) => {
+            result?;
+        }
+        _ = tokio::signal::ctrl_c() => {
+            info!("Shutdown signal received");
+        }
+    }
+
     info!("Application running. Press Ctrl+C to exit.");
-    // For example, wait forever:
-    tokio::signal::ctrl_c().await?;
 
     Ok(())
 }

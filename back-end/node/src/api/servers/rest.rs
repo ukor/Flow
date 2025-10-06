@@ -1,27 +1,54 @@
 use crate::{api::servers::app_state::AppState, bootstrap::config::Config};
 use axum::{
     Router,
-    extract::{Path, State},
-    http::StatusCode,
+    extract::State,
+    http::{HeaderValue, Method, StatusCode},
     response::Json,
     routing::{get, post},
 };
 use errors::AppError;
+use log::info;
 use serde_json::{Value, json};
+use tower_http::cors::{Any, CorsLayer};
 
 pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError> {
+    // Configure CORS
+    let cors = CorsLayer::new()
+        // Allow requests from these origins
+        .allow_origin(["http://localhost:3000".parse::<HeaderValue>().unwrap()])
+        // Allow these HTTP methods
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        // Allow headers
+        .allow_headers(Any)
+        // Cache preflight requests for 1 hour
+        .max_age(std::time::Duration::from_secs(3600));
+
+    // Configure Router
     let app = Router::new()
-        .route("/api/v1/webauthn/start", post(start_webauthn_registration))
         .route(
-            "/api/v1/webauthn/finish",
+            "/api/v1/webauthn/start_registration",
+            get(start_webauthn_registration),
+        )
+        .route(
+            "/api/v1/webauthn/finish_registration",
             post(finish_webauthn_registration),
         )
         .route("/api/v1/spaces", post(create_space))
         .route("/api/v1/health", get(health_check))
-        .with_state(app_state.clone());
+        .with_state(app_state.clone())
+        .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
+    let bind_addr = format!("0.0.0.0:{}", config.server.rest_port);
+    let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     axum::serve(listener, app).await?;
+
+    info!("Rest Server up on addr: {}", &bind_addr);
 
     Ok(())
 }
@@ -31,10 +58,7 @@ async fn start_webauthn_registration(
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let node = app_state.node.read().await;
     match node.start_webauthn_registration().await {
-        Ok(challenge) => Ok(Json(json!({
-            "challenge": challenge,
-            "status": "success"
-        }))),
+        Ok(challenge) => Ok(Json(json!(challenge))),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
