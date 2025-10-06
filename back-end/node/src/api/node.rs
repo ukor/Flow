@@ -7,6 +7,7 @@ use log::info;
 use sea_orm::DatabaseConnection;
 use sled::Db;
 use webauthn_rs::prelude::CreationChallengeResponse;
+use webauthn_rs::prelude::RegisterPublicKeyCredential;
 
 pub struct Node {
     pub node_data: NodeData,
@@ -34,6 +35,17 @@ impl Node {
     pub async fn start_webauthn_registration(&self) -> Result<CreationChallengeResponse, AppError> {
         info!("Starting WebAuthn Registration..");
         webauthn::auth::start_registration(self)
+            .await
+            .map_err(|e| AppError::Auth(format!("WebAuthn registration failed: {}", e)))
+    }
+
+    pub async fn finish_webauthn_registration(
+        &self,
+        challenge_id: &str,
+        reg: RegisterPublicKeyCredential,
+    ) -> Result<(), AppError> {
+        info!("Finishing WebAuthn Registration..");
+        webauthn::auth::finish_registration(self, challenge_id, reg)
             .await
             .map_err(|e| AppError::Auth(format!("WebAuthn registration failed: {}", e)))
     }

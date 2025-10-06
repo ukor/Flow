@@ -1,4 +1,5 @@
 use crate::api::node::Node;
+use base64::prelude::*;
 use log::info;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -27,13 +28,16 @@ pub async fn start_registration(node: &Node) -> Result<CreationChallengeResponse
         None,
     ) {
         Ok((ccr, reg_state)) => {
-            let key = format!("reg_state:{}", device_id);
+            let challenge_key = BASE64_STANDARD.encode(&ccr.public_key.challenge);
             let value = (uuid, device_id, reg_state);
 
             let mut cache = REG_CACHE.lock().unwrap();
-            cache.insert(key, value);
+            cache.insert(challenge_key.clone(), value);
 
-            info!("Started Registration process!");
+            info!(
+                "Started Registration process with challenge: {}",
+                challenge_key
+            );
             ccr
         }
         Err(e) => {
@@ -47,36 +51,25 @@ pub async fn start_registration(node: &Node) -> Result<CreationChallengeResponse
 
 pub async fn finish_registration(
     node: &Node,
+    challenge_key: &str,
     reg: RegisterPublicKeyCredential,
-) -> Result<Passkey, WebauthnError> {
-    let node_id = node.node_data.id.clone();
-    let key = format!("reg_state:{}", node_id);
-
+) -> Result<(), WebauthnError> {
     let (_, _, reg_state) = {
         let mut cache = REG_CACHE.lock().unwrap();
         cache
-            .remove(&key)
-            .ok_or_else(|| WebauthnError::ChallengeNotFound)?
+            .remove(challenge_key)
+            .ok_or(WebauthnError::MismatchedChallenge)?
     };
 
     // Complete the registration
-
-    let passkey = match node
+    let _passkey = node
         .auth_state
         .webauthn
-        .finish_passkey_registration(&reg, &reg_state)
-    {
-        Ok(pk) => {
-            /// TODO:
-            /// (optional) generate DID from passkey
-            /// save user and passkey
-            pk
-        }
-        Err(e) => {
-            info!("error -> {:?}", e);
-            return Err(e);
-        }
-    };
+        .finish_passkey_registration(&reg, &reg_state)?;
 
-    Ok(passkey)
+    // TODO: Store passkey in database
+    // TODO: Generate DID from passkey
+    // TODO: Save user and passkey
+
+    Ok(())
 }

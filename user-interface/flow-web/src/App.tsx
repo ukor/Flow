@@ -27,7 +27,8 @@ function App() {
         throw new Error(`HTTP error! status: ${resp.status}`)
       }
 
-      const options = await resp.json()
+      const options  = await resp.json();
+      const challenge_id = options.publicKey.challenge;
 
       const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
         challenge: base64UrlToBuffer(options.publicKey.challenge),
@@ -67,7 +68,7 @@ function App() {
           clientDataJSON: bufferToBase64Url(attestationResponse.clientDataJSON),
         },
         type: credential.type,
-        clientExtensionResults: credential.getClientExtensionResults(),
+        extentions: credential.getClientExtensionResults(),
       };
 
       // 5. Send to server for verification
@@ -76,7 +77,10 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credentialJSON),
+        body: JSON.stringify({
+          challenge_id: challenge_id,
+          credential: credentialJSON
+        })
       });
 
       if (!verificationResp.ok) {

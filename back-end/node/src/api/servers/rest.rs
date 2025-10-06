@@ -7,9 +7,10 @@ use axum::{
     routing::{get, post},
 };
 use errors::AppError;
-use log::info;
+use log::{error, info};
 use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
+use webauthn_rs::prelude::RegisterPublicKeyCredential;
 
 pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError> {
     // Configure CORS
@@ -67,10 +68,46 @@ async fn finish_webauthn_registration(
     State(app_state): State<AppState>,
     Json(payload): Json<Value>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    // Extract registration data from payload
-    // Call node.finish_webauthn_registration()
-    // Return result
-    Ok(Json(json!({"status": "success"})))
+    // Extract challenge_id
+    let challenge_id = payload["challenge_id"].as_str().ok_or_else(|| {
+        error!("Missing challenge_id in request payload");
+        (StatusCode::BAD_REQUEST, "Missing challenge_id".to_string())
+    })?;
+
+    // Extract and parse the credential
+    let credential_value = payload["credential"].as_object().ok_or_else(|| {
+        error!("Missing credential in request payload");
+        (StatusCode::BAD_REQUEST, "Missing credential".to_string())
+    })?;
+
+    let reg_credential = serde_json::from_value::<RegisterPublicKeyCredential>(
+        serde_json::Value::Object(credential_value.clone()),
+    )
+    .map_err(|e| {
+        error!("Failed to parse credential: {}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid credential format: {}", e),
+        )
+    })?;
+
+    // Delegate to the core business logic
+    let node = app_state.node.read().await;
+    node.finish_webauthn_registration(challenge_id, reg_credential)
+        .await
+        .map_err(|e| {
+            error!(
+                "WebAuthn registration failed for challenge_id {}: {}",
+                challenge_id, e
+            );
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
+
+    // Return success response
+    Ok(Json(json!({
+        "verified": "true",
+        "message": "Passkey registered successfully"
+    })))
 }
 
 async fn create_space(
