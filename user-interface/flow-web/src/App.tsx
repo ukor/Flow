@@ -27,26 +27,27 @@ function App() {
         throw new Error(`HTTP error! status: ${resp.status}`)
       }
 
-      const options  = await resp.json();
-      const challenge_id = options.publicKey.challenge;
+      const respJson  = await resp.json();
+      const response = respJson.challenge;
+      const challenge_id = respJson.challenge_id;
 
       const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
-        challenge: base64UrlToBuffer(options.publicKey.challenge),
-        rp: options.publicKey.rp,
+        challenge: base64UrlToBuffer(response.publicKey.challenge),
+        rp: response.publicKey.rp,
         user: {
-          id: base64UrlToBuffer(options.publicKey.user.id),
-          name: options.publicKey.user.name,
-          displayName: options.publicKey.user.displayName,
+          id: base64UrlToBuffer(response.publicKey.user.id),
+          name: response.publicKey.user.name,
+          displayName: response.publicKey.user.displayName,
         },
-        pubKeyCredParams: options.publicKey.pubKeyCredParams,
-        timeout: options.publicKey.timeout,
-        excludeCredentials: options.publicKey.excludeCredentials?.map((cred: any) => ({
+        pubKeyCredParams: response.publicKey.pubKeyCredParams,
+        timeout: response.publicKey.timeout,
+        excludeCredentials: response.publicKey.excludeCredentials?.map((cred: any) => ({
           id: base64UrlToBuffer(cred.id),
           type: cred.type,
           transports: cred.transports,
         })),
-        authenticatorSelection: options.publicKey.authenticatorSelection,
-        attestation: options.publicKey.attestation,
+        authenticatorSelection: response.publicKey.authenticatorSelection,
+        attestation: response.publicKey.attestation,
       };
 
       // 3. Call native browser WebAuthn API

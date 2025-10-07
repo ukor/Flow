@@ -32,7 +32,9 @@ impl Node {
         Ok(())
     }
 
-    pub async fn start_webauthn_registration(&self) -> Result<CreationChallengeResponse, AppError> {
+    pub async fn start_webauthn_registration(
+        &self,
+    ) -> Result<(CreationChallengeResponse, String), AppError> {
         info!("Starting WebAuthn Registration..");
         webauthn::auth::start_registration(self)
             .await

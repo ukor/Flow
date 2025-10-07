@@ -9,7 +9,9 @@ use webauthn_rs::prelude::*;
 static REG_CACHE: Lazy<Arc<Mutex<HashMap<String, (Uuid, String, PasskeyRegistration)>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
-pub async fn start_registration(node: &Node) -> Result<CreationChallengeResponse, WebauthnError> {
+pub async fn start_registration(
+    node: &Node,
+) -> Result<(CreationChallengeResponse, String), WebauthnError> {
     /// - obtain did:key from bootstrap, or generate new
     /// - get credential id linked to did:key in persistence (PassKey table)
     /// - trigger start_passkey_registration call
@@ -38,7 +40,7 @@ pub async fn start_registration(node: &Node) -> Result<CreationChallengeResponse
                 "Started Registration process with challenge: {}",
                 challenge_key
             );
-            ccr
+            (ccr, challenge_key)
         }
         Err(e) => {
             info!("error -> {:?}", e);

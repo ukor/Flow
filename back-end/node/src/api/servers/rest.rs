@@ -59,7 +59,16 @@ async fn start_webauthn_registration(
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let node = app_state.node.read().await;
     match node.start_webauthn_registration().await {
-        Ok(challenge) => Ok(Json(json!(challenge))),
+        Ok((challenge, challenge_key)) => {
+            info!(
+                "WebAuthn registration started successfully with challenge_id: {}",
+                challenge_key
+            );
+            Ok(Json(json!({
+                "challenge": challenge,
+                "challenge_id": challenge_key
+            })))
+        }
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
