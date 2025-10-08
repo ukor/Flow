@@ -69,7 +69,7 @@ function App() {
           clientDataJSON: bufferToBase64Url(attestationResponse.clientDataJSON),
         },
         type: credential.type,
-        extentions: credential.getClientExtensionResults(),
+        extensions: credential.getClientExtensionResults(),
       };
 
       // 5. Send to server for verification

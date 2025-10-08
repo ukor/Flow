@@ -1,13 +1,39 @@
 use crate::api::node::Node;
 use base64::prelude::*;
-use log::info;
+use entity::pass_key;
+use errors::AppError;
+use log::{error, info};
 use once_cell::sync::Lazy;
+use sea_orm::{
+    ActiveModelTrait,
+    ActiveValue::{NotSet, Set},
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use webauthn_rs::prelude::*;
 
-static REG_CACHE: Lazy<Arc<Mutex<HashMap<String, (Uuid, String, PasskeyRegistration)>>>> =
+struct RegistrationSession {
+    uuid: Uuid,
+    device_id: String,
+    reg_state: PasskeyRegistration,
+    created_at: Instant,
+}
+
+static REG_CACHE: Lazy<Arc<Mutex<HashMap<String, RegistrationSession>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+// Add cleanup on insert
+fn _insert_with_cleanup(
+    cache: &mut HashMap<String, RegistrationSession>,
+    key: String,
+    session: RegistrationSession,
+) {
+    // Remove expired entries (older than 5 minutes)
+    cache.retain(|_, v| v.created_at.elapsed() < Duration::from_secs(300));
+    cache.insert(key, session);
+}
 
 pub async fn start_registration(
     node: &Node,
@@ -23,18 +49,44 @@ pub async fn start_registration(
     let uuid = Uuid::new_v4();
     let device_id = node.node_data.id.clone();
 
+    // TODO: Query existing credentials for this device_id and exclude them
+    // Query existing credentials for this device_id and exclude them
+    let existing_creds = get_existing_credentials(&node.db, &device_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to query existing credentials: {}", e);
+            WebauthnError::CredentialRetrievalError
+        })?;
+
+    let exclude_creds = if existing_creds.is_empty() {
+        None
+    } else {
+        Some(existing_creds)
+    };
+
     let res = match node.auth_state.webauthn.start_passkey_registration(
         uuid,
         device_id.as_str(),
         device_id.as_str(),
-        None,
+        exclude_creds,
     ) {
         Ok((ccr, reg_state)) => {
             let challenge_key = BASE64_STANDARD.encode(&ccr.public_key.challenge);
-            let value = (uuid, device_id, reg_state);
+            let session = RegistrationSession {
+                uuid,
+                device_id,
+                reg_state,
+                created_at: Instant::now(),
+            };
 
-            let mut cache = REG_CACHE.lock().unwrap();
-            cache.insert(challenge_key.clone(), value);
+            let mut cache = REG_CACHE.lock().map_err(|e| {
+                error!("Failed to acquire lock on REG_CACHE: {}", e);
+                WebauthnError::CredentialPersistenceError
+            })?;
+
+            // Clean up expired entries before inserting so the expired ones don't pile up
+            cache.retain(|_, v| v.created_at.elapsed() < Duration::from_secs(300));
+            cache.insert(challenge_key.clone(), session);
 
             info!(
                 "Started Registration process with challenge: {}",
@@ -56,15 +108,26 @@ pub async fn finish_registration(
     challenge_key: &str,
     reg: RegisterPublicKeyCredential,
 ) -> Result<(), WebauthnError> {
-    let (_, _, reg_state) = {
-        let mut cache = REG_CACHE.lock().unwrap();
-        cache
+    let (uuid, device_id, reg_state) = {
+        let mut cache = REG_CACHE.lock().map_err(|e| {
+            error!("Failed to acquire lock on REG_CACHE: {}", e);
+            WebauthnError::CredentialRetrievalError
+        })?;
+
+        let session = cache
             .remove(challenge_key)
-            .ok_or(WebauthnError::MismatchedChallenge)?
+            .ok_or_else(|| WebauthnError::MismatchedChallenge)?;
+
+        // Check if expired
+        if session.created_at.elapsed() > Duration::from_secs(300) {
+            return Err(WebauthnError::ChallengeNotFound);
+        }
+
+        (session.uuid, session.device_id, session.reg_state)
     };
 
     // Complete the registration
-    let _passkey = node
+    let passkey = node
         .auth_state
         .webauthn
         .finish_passkey_registration(&reg, &reg_state)?;
@@ -72,6 +135,180 @@ pub async fn finish_registration(
     // TODO: Store passkey in database
     // TODO: Generate DID from passkey
     // TODO: Save user and passkey
+
+    store_passkey(&node.db, &uuid, &device_id, &passkey)
+        .await
+        .map_err(|e| {
+            error!("Failed to store Passkey: {}", e.to_string());
+            WebauthnError::CredentialPersistenceError
+        })?;
+
+    Ok(())
+}
+
+async fn store_passkey(
+    db: &DatabaseConnection,
+    user_id: &Uuid,
+    device_id: &str,
+    passkey: &Passkey,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!(
+        "Storing passkey for user {} with device_id {}",
+        user_id, device_id
+    );
+
+    // Serialize the entire Passkey object to JSON for storage
+    let json_data = serde_json::to_string(&passkey)?;
+
+    // Extract credential_id as bytes
+    let credential_id: Vec<u8> = passkey.cred_id().as_ref().to_vec();
+
+    // Extract public key (COSE key)
+    // Note: The public key in Passkey is stored as COSEKey, we need to serialize it
+    let public_key = serde_json::to_vec(&passkey.get_public_key())?;
+
+    let attestation = "None".to_string();
+    let new_passkey = pass_key::ActiveModel {
+        id: NotSet,
+        device_id: Set(device_id.to_string()),
+        credential_id: Set(credential_id),
+        public_key: Set(public_key),
+        sign_count: Set(0),
+        attestation: Set(attestation),
+        json_data: Set(json_data),
+        time_created: Set(chrono::Utc::now().into()),
+    };
+
+    match new_passkey.insert(db).await {
+        Ok(passkey) => {
+            info!(
+                "Successfully saved Passkey: {}, Device_id: {}, Public Key: {:x?}",
+                passkey.id, device_id, passkey.public_key
+            );
+            Ok(())
+        }
+        Err(e) => Err(Box::new(e)),
+    }
+}
+
+/// Retrieve all passkeys for a given device_id
+/// Used during registration to populate exclude_credentials
+async fn get_passkeys_by_device_id(
+    db: &DatabaseConnection,
+    device_id: &str,
+) -> Result<Vec<Passkey>, Box<dyn std::error::Error>> {
+    use entity::pass_key::Column;
+    use entity::pass_key::Entity as PassKeyEntity;
+
+    info!("Retrieving passkeys for device_id: {}", device_id);
+
+    let passkey_models = PassKeyEntity::find()
+        .filter(Column::DeviceId.eq(device_id))
+        .all(db)
+        .await?;
+
+    let mut passkeys = Vec::new();
+    for model in passkey_models {
+        match serde_json::from_str::<Passkey>(&model.json_data) {
+            Ok(passkey) => {
+                info!(
+                    "Loaded passkey with credential_id: {:x?}",
+                    model.credential_id
+                );
+                passkeys.push(passkey);
+            }
+            Err(e) => {
+                error!("Failed to deserialize passkey {}: {}", model.id, e);
+                // Continue loading other passkeys even if one fails
+            }
+        }
+    }
+
+    Ok(passkeys)
+}
+
+/// Retrieve a single passkey by credential_id
+/// Used during authentication to find the passkey for verification
+async fn get_passkey_by_credential_id(
+    db: &DatabaseConnection,
+    credential_id: &[u8],
+) -> Result<Option<(pass_key::Model, Passkey)>, Box<dyn std::error::Error>> {
+    use entity::pass_key::Column;
+    use entity::pass_key::Entity as PassKeyEntity;
+
+    info!("Looking up passkey by credential_id: {:x?}", credential_id);
+
+    let passkey_model = PassKeyEntity::find()
+        .filter(Column::CredentialId.eq(credential_id))
+        .one(db)
+        .await?;
+
+    match passkey_model {
+        Some(model) => {
+            let passkey = serde_json::from_str::<Passkey>(&model.json_data)?;
+            info!("Found passkey with ID: {}", model.id);
+            Ok(Some((model, passkey)))
+        }
+        None => {
+            info!("No passkey found for credential_id");
+            Ok(None)
+        }
+    }
+}
+
+/// Retrieve all credential IDs for a device (for exclude_credentials)
+/// Returns a list of CredentialID objects that WebAuthn can use
+async fn get_existing_credentials(
+    db: &DatabaseConnection,
+    device_id: &str,
+) -> Result<Vec<CredentialID>, Box<dyn std::error::Error>> {
+    let passkeys = get_passkeys_by_device_id(db, device_id).await?;
+
+    let credential_ids: Vec<CredentialID> =
+        passkeys.iter().map(|pk| pk.cred_id().clone()).collect();
+
+    info!(
+        "Found {} existing credentials for device_id: {}",
+        credential_ids.len(),
+        device_id
+    );
+
+    Ok(credential_ids)
+}
+
+/// Update the sign_count for a passkey after successful authentication
+/// CRITICAL for security: detects cloned authenticators
+async fn update_sign_count(
+    db: &DatabaseConnection,
+    passkey_id: i32,
+    new_count: u32,
+    updated_passkey: &Passkey,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use entity::pass_key::Entity as PassKeyEntity;
+
+    info!(
+        "Updating sign_count for passkey {}: {} -> {}",
+        passkey_id,
+        new_count.saturating_sub(1),
+        new_count
+    );
+
+    // Serialize the updated passkey
+    let json_data = serde_json::to_string(updated_passkey)?;
+
+    // Update both sign_count and json_data
+    let mut passkey: pass_key::ActiveModel = PassKeyEntity::find_by_id(passkey_id)
+        .one(db)
+        .await?
+        .ok_or("Passkey not found")?
+        .into();
+
+    passkey.sign_count = Set(new_count as i32);
+    passkey.json_data = Set(json_data);
+
+    passkey.update(db).await?;
+
+    info!("Sign count updated successfully for passkey {}", passkey_id);
 
     Ok(())
 }

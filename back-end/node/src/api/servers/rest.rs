@@ -114,7 +114,7 @@ async fn finish_webauthn_registration(
 
     // Return success response
     Ok(Json(json!({
-        "verified": "true",
+        "verified": true,
         "message": "Passkey registered successfully"
     })))
 }
