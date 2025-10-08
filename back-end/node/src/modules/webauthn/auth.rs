@@ -1,7 +1,6 @@
 use crate::api::node::Node;
 use base64::prelude::*;
 use entity::pass_key;
-use errors::AppError;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use sea_orm::{
@@ -12,7 +11,11 @@ use sea_orm::{
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use webauthn_rs::prelude::*;
+use webauthn_rs::prelude::{
+    AuthenticationResult, CreationChallengeResponse, CredentialID, Passkey, PasskeyAuthentication,
+    PasskeyRegistration, PublicKeyCredential, RegisterPublicKeyCredential,
+    RequestChallengeResponse, Uuid, WebauthnError,
+};
 
 struct RegistrationSession {
     uuid: Uuid,
@@ -21,19 +24,18 @@ struct RegistrationSession {
     created_at: Instant,
 }
 
+struct AuthenticationSession {
+    uuid: Uuid,
+    device_id: String,
+    auth_state: PasskeyAuthentication,
+    created_at: Instant,
+}
+
 static REG_CACHE: Lazy<Arc<Mutex<HashMap<String, RegistrationSession>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
-// Add cleanup on insert
-fn _insert_with_cleanup(
-    cache: &mut HashMap<String, RegistrationSession>,
-    key: String,
-    session: RegistrationSession,
-) {
-    // Remove expired entries (older than 5 minutes)
-    cache.retain(|_, v| v.created_at.elapsed() < Duration::from_secs(300));
-    cache.insert(key, session);
-}
+static AUTH_CACHE: Lazy<Arc<Mutex<HashMap<String, AuthenticationSession>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
 pub async fn start_registration(
     node: &Node,
@@ -108,6 +110,8 @@ pub async fn finish_registration(
     challenge_key: &str,
     reg: RegisterPublicKeyCredential,
 ) -> Result<(), WebauthnError> {
+    info!("Finishing registration for challenge_id: {}", challenge_key);
+
     let (uuid, device_id, reg_state) = {
         let mut cache = REG_CACHE.lock().map_err(|e| {
             error!("Failed to acquire lock on REG_CACHE: {}", e);
@@ -142,6 +146,8 @@ pub async fn finish_registration(
             error!("Failed to store Passkey: {}", e.to_string());
             WebauthnError::CredentialPersistenceError
         })?;
+
+    info!("Passkey stored successfully for device_id: {}", device_id);
 
     Ok(())
 }
@@ -189,6 +195,151 @@ async fn store_passkey(
         }
         Err(e) => Err(Box::new(e)),
     }
+}
+
+/// Start the authentication process
+pub async fn start_authentication(
+    node: &Node,
+) -> Result<(RequestChallengeResponse, String), WebauthnError> {
+    let device_id = node.node_data.id.as_str();
+    info!("Starting authentication for device: {}", device_id);
+
+    // Get all passkeys for this device
+    let passkeys = get_passkeys_for_device(&node.db, device_id)
+        .await
+        .map_err(|_| WebauthnError::CredentialRetrievalError)?;
+
+    if passkeys.is_empty() {
+        return Err(WebauthnError::CredentialNotFound);
+    }
+
+    let uuid = Uuid::new_v4();
+    let challenge_key = Uuid::new_v4().to_string();
+
+    let res = match node
+        .auth_state
+        .webauthn
+        .start_passkey_authentication(&passkeys)
+    {
+        Ok((rcr, auth_state)) => {
+            let session = AuthenticationSession {
+                uuid,
+                device_id: device_id.to_string(),
+                auth_state,
+                created_at: Instant::now(),
+            };
+
+            let mut cache = AUTH_CACHE.lock().map_err(|e| {
+                error!("Failed to acquire lock on AUTH_CACHE: {}", e);
+                WebauthnError::CredentialPersistenceError
+            })?;
+
+            // Clean up expired entries before inserting so the expired ones don't pile up
+            cache.retain(|_, v| v.created_at.elapsed() < Duration::from_secs(300));
+            cache.insert(challenge_key.clone(), session);
+
+            info!(
+                "Started authentication process with challenge: {}",
+                challenge_key
+            );
+            (rcr, challenge_key)
+        }
+        Err(e) => {
+            info!("Authentication start error -> {:?}", e);
+            return Err(e);
+        }
+    };
+
+    Ok(res)
+}
+
+/// Complete the authentication process
+pub async fn finish_authentication(
+    node: &Node,
+    challenge_key: &str,
+    auth: PublicKeyCredential,
+) -> Result<AuthenticationResult, WebauthnError> {
+    let (_uuid, device_id, auth_state) = {
+        let mut cache = AUTH_CACHE.lock().map_err(|e| {
+            error!("Failed to acquire lock on AUTH_CACHE: {}", e);
+            WebauthnError::CredentialRetrievalError
+        })?;
+
+        let session = cache
+            .remove(challenge_key)
+            .ok_or_else(|| WebauthnError::ChallengeNotFound)?;
+
+        // Check if expired
+        if session.created_at.elapsed() > Duration::from_secs(300) {
+            return Err(WebauthnError::ChallengeNotFound);
+        }
+
+        (session.uuid, session.device_id, session.auth_state)
+    };
+
+    // Complete the authentication
+    let auth_result = node
+        .auth_state
+        .webauthn
+        .finish_passkey_authentication(&auth, &auth_state)?;
+
+    // Update passkey counter if needed
+    if auth_result.needs_update() {
+        update_passkey_counter(&node.db, &device_id, auth_result.counter())
+            .await
+            .map_err(|_| WebauthnError::CredentialCounterUpdateFailure)?;
+    }
+
+    info!(
+        "Authentication successful for device: {} with counter: {}",
+        device_id,
+        auth_result.counter()
+    );
+
+    Ok(auth_result)
+}
+
+/// Get all passkeys for a specific device
+async fn get_passkeys_for_device(
+    db: &DatabaseConnection,
+    device_id: &str,
+) -> Result<Vec<Passkey>, Box<dyn std::error::Error>> {
+    let passkeys = pass_key::Entity::find()
+        .filter(pass_key::Column::DeviceId.eq(device_id))
+        .all(db)
+        .await?;
+
+    let mut result = Vec::new();
+    for passkey_model in passkeys {
+        // Deserialize the JSON data back to Passkey
+        let passkey: Passkey = serde_json::from_str(&passkey_model.json_data)?;
+        result.push(passkey);
+    }
+
+    Ok(result)
+}
+
+/// Update passkey counter after successful authentication
+async fn update_passkey_counter(
+    db: &DatabaseConnection,
+    device_id: &str,
+    new_counter: u32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut passkey = pass_key::Entity::find()
+        .filter(pass_key::Column::DeviceId.eq(device_id))
+        .one(db)
+        .await?
+        .ok_or("Passkey not found")?;
+
+    let mut active_model: pass_key::ActiveModel = passkey.into();
+    active_model.sign_count = Set(new_counter as i32);
+    active_model.update(db).await?;
+
+    info!(
+        "Updated passkey counter for device: {} to {}",
+        device_id, new_counter
+    );
+    Ok(())
 }
 
 /// Retrieve all passkeys for a given device_id

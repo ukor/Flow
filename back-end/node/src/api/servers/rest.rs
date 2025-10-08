@@ -10,7 +10,7 @@ use errors::AppError;
 use log::{error, info};
 use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
-use webauthn_rs::prelude::RegisterPublicKeyCredential;
+use webauthn_rs::prelude::{PublicKeyCredential, RegisterPublicKeyCredential};
 
 pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError> {
     // Configure CORS
@@ -39,6 +39,14 @@ pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError
         .route(
             "/api/v1/webauthn/finish_registration",
             post(finish_webauthn_registration),
+        )
+        .route(
+            "/api/v1/webauthn/start_authentication",
+            post(start_webauthn_authentication),
+        )
+        .route(
+            "/api/v1/webauthn/finish_authentication",
+            post(finish_webauthn_authentication),
         )
         .route("/api/v1/spaces", post(create_space))
         .route("/api/v1/health", get(health_check))
@@ -77,13 +85,11 @@ async fn finish_webauthn_registration(
     State(app_state): State<AppState>,
     Json(payload): Json<Value>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    // Extract challenge_id
     let challenge_id = payload["challenge_id"].as_str().ok_or_else(|| {
         error!("Missing challenge_id in request payload");
         (StatusCode::BAD_REQUEST, "Missing challenge_id".to_string())
     })?;
 
-    // Extract and parse the credential
     let credential_value = payload["credential"].as_object().ok_or_else(|| {
         error!("Missing credential in request payload");
         (StatusCode::BAD_REQUEST, "Missing credential".to_string())
@@ -100,7 +106,6 @@ async fn finish_webauthn_registration(
         )
     })?;
 
-    // Delegate to the core business logic
     let node = app_state.node.read().await;
     node.finish_webauthn_registration(challenge_id, reg_credential)
         .await
@@ -112,10 +117,75 @@ async fn finish_webauthn_registration(
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
 
-    // Return success response
     Ok(Json(json!({
         "verified": true,
         "message": "Passkey registered successfully"
+    })))
+}
+
+async fn start_webauthn_authentication(
+    State(app_state): State<AppState>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let node = app_state.node.read().await;
+    match node.start_webauthn_authentication().await {
+        Ok((challenge, challenge_id)) => {
+            info!(
+                "WebAuthn authentication started successfully with challenge_id: {}",
+                challenge_id
+            );
+            Ok(Json(json!({
+                "challenge": challenge,
+                "challenge_id": challenge_id
+            })))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn finish_webauthn_authentication(
+    State(app_state): State<AppState>,
+    Json(payload): Json<Value>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let challenge_id = payload["challenge_id"].as_str().ok_or_else(|| {
+        error!("Missing challenge_id in request payload");
+        (StatusCode::BAD_REQUEST, "Missing challenge_id".to_string())
+    })?;
+
+    let credential_value = payload["credential"].as_object().ok_or_else(|| {
+        error!("Missing credential in request payload");
+        (StatusCode::BAD_REQUEST, "Missing credential".to_string())
+    })?;
+
+    let auth_credential = serde_json::from_value::<PublicKeyCredential>(serde_json::Value::Object(
+        credential_value.clone(),
+    ))
+    .map_err(|e| {
+        error!("Failed to parse authentication credential: {}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid credential format: {}", e),
+        )
+    })?;
+
+    let node = app_state.node.read().await;
+    let auth_result = node
+        .finish_webauthn_authentication(challenge_id, auth_credential)
+        .await
+        .map_err(|e| {
+            error!(
+                "WebAuthn authentication failed for challenge_id {}: {}",
+                challenge_id, e
+            );
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
+
+    Ok(Json(json!({
+        "verified": true,
+        "message": "Authentication successful",
+        "counter": auth_result.counter(),
+        "backup_state": auth_result.backup_state(),
+        "backup_eligible": auth_result.backup_eligible(),
+        "needs_update": auth_result.needs_update()
     })))
 }
 

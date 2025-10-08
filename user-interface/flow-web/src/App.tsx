@@ -27,7 +27,7 @@ function App() {
         throw new Error(`HTTP error! status: ${resp.status}`)
       }
 
-      const respJson  = await resp.json();
+      const respJson = await resp.json();
       const response = respJson.challenge;
       const challenge_id = respJson.challenge_id;
 
@@ -106,65 +106,99 @@ function App() {
   }
 
 
-  // const handleAuthentication = async () => {
-  //   // Reset success/error messages
-  //   setSuccessMessage('')
-  //   setErrorMessage('')
-  //   setIsAuthenticating(true)
+  // Add authentication handler
+  const handleAuthentication = async () => {
+    // Reset success/error messages
+    setSuccessMessage('')
+    setErrorMessage('')
+    setIsAuthenticating(true)
 
-  //   try {
-  //     // GET authentication options from the endpoint that calls
-  //     // @simplewebauthn/server -> generateAuthenticationOptions()
-  //     const resp = await fetch('http://localhost:5173/generate-authentication-options')
+    try {
 
-  //     if (!resp.ok) {
-  //       throw new Error(`HTTP error! status: ${resp.status}`)
-  //     }
+      // 1. Start authentication process
+      const startResp = await fetch('http://localhost:8080/api/v1/webauthn/start_authentication', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: "{}"
+      });
 
-  //     const optionsJSON = await resp.json()
+      if (!startResp.ok) {
+        throw new Error(`HTTP error! status: ${startResp.status}`);
+      }
 
-  //     let asseResp: AuthenticationResponseJSON
-  //     try {
-  //       // Pass the options to the authenticator and wait for a response
-  //       asseResp = await startAuthentication({ optionsJSON })
-  //     } catch (error: any) {
-  //       // Some basic error handling
-  //       setErrorMessage(error.message || 'An error occurred during authentication')
-  //       throw error
-  //     }
+      const startJson = await startResp.json();
+      const challenge = startJson.challenge;
+      const challenge_id = startJson.challenge_id;
+      const { publicKey } = challenge;
 
-  //     // POST the response to the endpoint that calls
-  //     // @simplewebauthn/server -> verifyAuthenticationResponse()
-  //     const verificationResp = await fetch('http://localhost:5173/verify-authentication', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify(asseResp),
-  //     })
+      // 2. Convert challenge to proper format
+      const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
+        challenge: base64UrlToBuffer(publicKey.challenge),
+        timeout: publicKey.timeout,
+        rpId: publicKey.rpId,
+        allowCredentials: publicKey.allowCredentials?.map((cred: any) => ({
+          id: base64UrlToBuffer(cred.id),
+          type: cred.type,
+          transports: cred.transports,
+        })),
+        userVerification: publicKey.userVerification,
+      };
 
-  //     if (!verificationResp.ok) {
-  //       throw new Error(`HTTP error! status: ${verificationResp.status}`)
-  //     }
+      // 3. Call native browser WebAuthn API
+      const credential = await navigator.credentials.get({
+        publicKey: publicKeyCredentialRequestOptions,
+      }) as PublicKeyCredential;
 
-  //     // Wait for the results of verification
-  //     const verificationJSON = await verificationResp.json()
+      if (!credential) {
+        throw new Error('Failed to get credential');
+      }
 
-  //     // Show UI appropriate for the `verified` status
-  //     if (verificationJSON && verificationJSON.verified) {
-  //       setSuccessMessage('Success! You are authenticated.')
-  //     } else {
-  //       setErrorMessage(`Oh no, something went wrong! Response: ${JSON.stringify(verificationJSON, null, 2)}`)
-  //     }
-  //   } catch (error: any) {
-  //     console.error('Authentication failed:', error)
-  //     if (!errorMessage) { // Only set if not already set by inner catch
-  //       setErrorMessage(`Authentication failed: ${error.message}`)
-  //     }
-  //   } finally {
-  //     setIsAuthenticating(false)
-  //   }
-  // }
+      // 4. Convert credential response to format for server
+      const assertionResponse = credential.response as AuthenticatorAssertionResponse;
+      const credentialJSON = {
+        id: credential.id,
+        rawId: bufferToBase64Url(credential.rawId),
+        response: {
+          authenticatorData: bufferToBase64Url(assertionResponse.authenticatorData),
+          clientDataJSON: bufferToBase64Url(assertionResponse.clientDataJSON),
+          signature: bufferToBase64Url(assertionResponse.signature),
+          userHandle: assertionResponse.userHandle ? bufferToBase64Url(assertionResponse.userHandle) : null,
+        },
+        type: credential.type,
+      };
+
+      // 5. Send to server for verification
+      const verificationResp = await fetch('http://localhost:8080/api/v1/webauthn/finish_authentication', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          challenge_id: challenge_id,
+          credential: credentialJSON
+        })
+      });
+
+      if (!verificationResp.ok) {
+        throw new Error(`HTTP error! status: ${verificationResp.status}`);
+      }
+
+      const verificationJSON = await verificationResp.json();
+
+      if (verificationJSON && verificationJSON.verified) {
+        setSuccessMessage(`Success! Authentication successful. Counter: ${verificationJSON.counter}`);
+      } else {
+        setErrorMessage(`Authentication failed: ${JSON.stringify(verificationJSON, null, 2)}`);
+      }
+    } catch (error: any) {
+      console.error('Authentication failed:', error)
+      setErrorMessage(`Authentication failed: ${error.message}`)
+    } finally {
+      setIsAuthenticating(false)
+    }
+  }
 
   function base64UrlToBuffer(base64url: string): ArrayBuffer {
     const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
@@ -176,7 +210,7 @@ function App() {
     }
     return bytes.buffer;
   }
-  
+
   function bufferToBase64Url(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = '';
@@ -204,9 +238,14 @@ function App() {
               style={{
                 backgroundColor: (isRegistering || isAuthenticating) ? '#ccc' : '#646cff',
                 cursor: (isRegistering || isAuthenticating) ? 'not-allowed' : 'pointer'
-              }}
-            >
+              }}>
               {isRegistering ? 'Registering...' : 'Register Passkey'}
+            </button>
+
+            <button
+              onClick={handleAuthentication}
+              disabled={isAuthenticating}>
+              {isAuthenticating ? 'Authenticating...' : 'Authenticate'}
             </button>
 
             {/* <button
