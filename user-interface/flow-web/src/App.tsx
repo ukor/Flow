@@ -135,15 +135,12 @@ function App() {
 
       // 2. Convert challenge to proper format
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
+        ...publicKey,
         challenge: base64UrlToBuffer(publicKey.challenge),
-        timeout: publicKey.timeout,
-        rpId: publicKey.rpId,
         allowCredentials: publicKey.allowCredentials?.map((cred: any) => ({
+          ...cred,
           id: base64UrlToBuffer(cred.id),
-          type: cred.type,
-          transports: cred.transports,
         })),
-        userVerification: publicKey.userVerification,
       };
 
       // 3. Call native browser WebAuthn API
@@ -244,12 +241,6 @@ function App() {
 
             <button
               onClick={handleAuthentication}
-              disabled={isAuthenticating}>
-              {isAuthenticating ? 'Authenticating...' : 'Authenticate'}
-            </button>
-
-            {/* <button
-              onClick={handleAuthentication}
               disabled={isAuthenticating || isRegistering}
               style={{
                 backgroundColor: (isAuthenticating || isRegistering) ? '#ccc' : '#646cff',
@@ -257,7 +248,7 @@ function App() {
               }}
             >
               {isAuthenticating ? 'Authenticating...' : 'Authenticate'}
-            </button> */}
+            </button>
           </div>
 
           {successMessage && (

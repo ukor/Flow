@@ -283,12 +283,10 @@ pub async fn finish_authentication(
         .webauthn
         .finish_passkey_authentication(&auth, &auth_state)?;
 
-    // Update passkey counter if needed
-    if auth_result.needs_update() {
-        update_passkey_counter(&node.db, &device_id, auth_result.counter())
-            .await
-            .map_err(|_| WebauthnError::CredentialCounterUpdateFailure)?;
-    }
+    // Update passkey counter
+    update_passkey_counter(&node.db, &device_id, auth_result.counter())
+        .await
+        .map_err(|_| WebauthnError::CredentialCounterUpdateFailure)?;
 
     info!(
         "Authentication successful for device: {} with counter: {}",
@@ -325,7 +323,7 @@ async fn update_passkey_counter(
     device_id: &str,
     new_counter: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut passkey = pass_key::Entity::find()
+    let passkey = pass_key::Entity::find()
         .filter(pass_key::Column::DeviceId.eq(device_id))
         .one(db)
         .await?
