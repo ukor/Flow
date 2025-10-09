@@ -1,7 +1,7 @@
 use crate::bootstrap::init::NodeData;
 use crate::modules::space;
-use crate::modules::webauthn;
-use crate::modules::webauthn::state::AuthState;
+use crate::modules::ssi::webauthn;
+use crate::modules::ssi::webauthn::state::AuthState;
 use errors::AppError;
 use log::info;
 use sea_orm::DatabaseConnection;
@@ -48,7 +48,7 @@ impl Node {
         &self,
         challenge_id: &str,
         reg: RegisterPublicKeyCredential,
-    ) -> Result<(), AppError> {
+    ) -> Result<(String, String), AppError> {
         info!("Finishing WebAuthn Registration..");
         webauthn::auth::finish_registration(self, challenge_id, reg)
             .await

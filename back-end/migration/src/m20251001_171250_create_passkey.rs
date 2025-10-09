@@ -12,19 +12,42 @@ impl MigrationTrait for Migration {
                     .table(PassKey::Table)
                     .if_not_exists()
                     .col(pk_auto(PassKey::Id))
-                    .col(string(PassKey::DeviceId))
-                    .col(blob(PassKey::CredentialId).unique_key().not_null())
+                    .col(integer(PassKey::UserId).null())
+                    .col(string(PassKey::DeviceId).not_null())
+                    .col(blob(PassKey::CredentialId).not_null())
                     .col(blob(PassKey::PublicKey).not_null())
                     .col(integer(PassKey::SignCount).default(0).not_null())
-                    .col(string(PassKey::Attestation))
+                    .col(integer(PassKey::AuthenticationCount).default(0).not_null())
+                    .col(timestamp_with_time_zone(PassKey::LastAuthenticated).null())
+                    .col(string(PassKey::Name).null())
+                    .col(string(PassKey::Attestation).null())
                     .col(text(PassKey::JsonData).not_null())
                     .col(timestamp_with_time_zone(PassKey::TimeCreated).not_null())
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_passkey_user")
+                            .from(PassKey::Table, PassKey::UserId)
+                            .to(User::Table, User::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        // Create unique index on credential_id
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_passkey_credential_id")
+                    .table(PassKey::Table)
+                    .col(PassKey::CredentialId)
+                    .unique()
                     .to_owned(),
             )
             .await?;
 
         // Create index on device_id for fast lookups during registration
-        // (to query existing credentials for exclude_credentials)
         manager
             .create_index(
                 Index::create()
@@ -35,11 +58,30 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // Create index on user_id for fast lookups
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_passkey_user_id")
+                    .table(PassKey::Table)
+                    .col(PassKey::UserId)
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // Drop indices first (if database requires it)
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_passkey_user_id")
+                    .table(PassKey::Table)
+                    .to_owned(),
+            )
+            .await?;
+
         manager
             .drop_index(
                 Index::drop()
@@ -50,10 +92,17 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
-            .drop_table(Table::drop().table(PassKey::Table).to_owned())
+            .drop_index(
+                Index::drop()
+                    .name("idx_passkey_credential_id")
+                    .table(PassKey::Table)
+                    .to_owned(),
+            )
             .await?;
 
-        Ok(())
+        manager
+            .drop_table(Table::drop().table(PassKey::Table).to_owned())
+            .await
     }
 }
 
@@ -61,11 +110,21 @@ impl MigrationTrait for Migration {
 enum PassKey {
     Table,
     Id,
+    UserId,
     DeviceId,
     CredentialId,
     PublicKey,
     SignCount,
+    AuthenticationCount,
+    LastAuthenticated,
+    Name,
     Attestation,
     JsonData,
     TimeCreated,
+}
+
+#[derive(DeriveIden)]
+enum User {
+    Table,
+    Id,
 }

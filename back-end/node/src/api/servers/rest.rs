@@ -107,7 +107,8 @@ async fn finish_webauthn_registration(
     })?;
 
     let node = app_state.node.read().await;
-    node.finish_webauthn_registration(challenge_id, reg_credential)
+    let (did, did_document) = node
+        .finish_webauthn_registration(challenge_id, reg_credential)
         .await
         .map_err(|e| {
             error!(
@@ -119,7 +120,9 @@ async fn finish_webauthn_registration(
 
     Ok(Json(json!({
         "verified": true,
-        "message": "Passkey registered successfully"
+        "message": "Passkey registered successfully",
+        "did": did,
+        "didDocument": serde_json::from_str::<Value>(&did_document).unwrap_or(json!({}))
     })))
 }
 

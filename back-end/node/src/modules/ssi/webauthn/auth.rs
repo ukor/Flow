@@ -1,6 +1,10 @@
 use crate::api::node::Node;
+use crate::modules::ssi::did::{
+    cose_to_jwk, create_did_document, did_document_to_json, generate_did_key_from_passkey,
+};
 use base64::prelude::*;
 use entity::pass_key;
+use entity::user;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use sea_orm::{
@@ -109,10 +113,10 @@ pub async fn finish_registration(
     node: &Node,
     challenge_key: &str,
     reg: RegisterPublicKeyCredential,
-) -> Result<(), WebauthnError> {
+) -> Result<(String, String), WebauthnError> {
     info!("Finishing registration for challenge_id: {}", challenge_key);
 
-    let (uuid, device_id, reg_state) = {
+    let (_uuid, device_id, reg_state) = {
         let mut cache = REG_CACHE.lock().map_err(|e| {
             error!("Failed to acquire lock on REG_CACHE: {}", e);
             WebauthnError::CredentialRetrievalError
@@ -136,25 +140,63 @@ pub async fn finish_registration(
         .webauthn
         .finish_passkey_registration(&reg, &reg_state)?;
 
-    // TODO: Store passkey in database
-    // TODO: Generate DID from passkey
-    // TODO: Save user and passkey
+    // Generate DID from passkey using SSI
+    let did = generate_did_key_from_passkey(&passkey).map_err(|e| {
+        error!("Failed to generate DID: {}", e);
+        WebauthnError::CredentialPersistenceError
+    })?;
 
-    store_passkey(&node.db, &uuid, &device_id, &passkey)
+    // Create DID Document
+    let jwk = cose_to_jwk(passkey.get_public_key()).map_err(|e| {
+        error!("Failed to convert COSE to JWK: {}", e);
+        WebauthnError::CredentialPersistenceError
+    })?;
+
+    let did_doc = create_did_document(&did, &jwk).map_err(|e| {
+        error!("Failed to create DID document: {}", e);
+        WebauthnError::CredentialPersistenceError
+    })?;
+
+    let did_doc_json = did_document_to_json(&did_doc).map_err(|e| {
+        error!("Failed to serialize DID document: {}", e);
+        WebauthnError::CredentialPersistenceError
+    })?;
+
+    info!("Generated DID: {}", did);
+    info!("DID Document: {}", did_doc_json);
+
+    // Create or get user with DID
+    let user = get_or_create_user(
+        &node.db,
+        &did,
+        &device_id,
+        &device_id,
+        Some(did_doc_json.clone()),
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to create/get user: {}", e);
+        WebauthnError::CredentialPersistenceError
+    })?;
+
+    store_passkey(&node.db, user.id, &device_id, &passkey)
         .await
         .map_err(|e| {
             error!("Failed to store Passkey: {}", e.to_string());
             WebauthnError::CredentialPersistenceError
         })?;
 
-    info!("Passkey stored successfully for device_id: {}", device_id);
+    info!(
+        "Passkey stored successfully for user: {} (DID: {})",
+        user.id, did
+    );
 
-    Ok(())
+    Ok((did, did_doc_json))
 }
 
 async fn store_passkey(
     db: &DatabaseConnection,
-    user_id: &Uuid,
+    user_id: i32,
     device_id: &str,
     passkey: &Passkey,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -174,15 +216,25 @@ async fn store_passkey(
     let public_key = serde_json::to_vec(&passkey.get_public_key())?;
 
     let attestation = "None".to_string();
+    let name = format!(
+        "Passkey-{}-{}",
+        &device_id[..8],
+        chrono::Utc::now().format("%Y%m%d")
+    );
+
     let new_passkey = pass_key::ActiveModel {
         id: NotSet,
+        user_id: Set(user_id),
         device_id: Set(device_id.to_string()),
         credential_id: Set(credential_id),
         public_key: Set(public_key),
         sign_count: Set(0),
+        authentication_count: Set(0),
+        name: Set(name),
         attestation: Set(attestation),
         json_data: Set(json_data),
         time_created: Set(chrono::Utc::now().into()),
+        last_authenticated: Set(chrono::Utc::now().into()),
     };
 
     match new_passkey.insert(db).await {
@@ -460,4 +512,43 @@ async fn update_sign_count(
     info!("Sign count updated successfully for passkey {}", passkey_id);
 
     Ok(())
+}
+
+// Add user management function
+async fn get_or_create_user(
+    db: &DatabaseConnection,
+    did: &str,
+    device_id: &str,
+    username: &str,
+    public_key_jwk: Option<String>,
+) -> Result<user::Model, Box<dyn std::error::Error>> {
+    // Try to find existing user by DID
+    if let Some(user) = user::Entity::find()
+        .filter(user::Column::Did.eq(did))
+        .one(db)
+        .await?
+    {
+        info!("Found existing user with DID: {}", did);
+        return Ok(user);
+    }
+
+    // Create new user
+    info!("Creating new user with DID: {}", did);
+    let device_ids = vec![device_id.to_string()];
+
+    let new_user = user::ActiveModel {
+        id: NotSet,
+        did: Set(did.to_string()),
+        device_ids: Set(serde_json::to_string(&device_ids)?),
+        username: Set(username.to_string()),
+        display_name: Set(username.to_string()),
+        public_key_jwk: Set(public_key_jwk.unwrap_or_default()),
+        time_created: Set(chrono::Utc::now().into()),
+        last_login: Set(chrono::Utc::now().into()),
+    };
+
+    let user = new_user.insert(db).await?;
+    info!("Created user with ID: {} and DID: {}", user.id, did);
+
+    Ok(user)
 }

@@ -4,7 +4,7 @@ use crate::{
         servers::{app_state::AppState, rest, websocket},
     },
     bootstrap::{self, config::Config},
-    modules::webauthn::state::AuthState,
+    modules::ssi::webauthn::state::AuthState,
 };
 use errors::AppError;
 use log::info;

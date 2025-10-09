@@ -1,2 +1,2 @@
 pub mod space;
-pub mod webauthn;
+pub mod ssi;
