@@ -44,18 +44,11 @@ static AUTH_CACHE: Lazy<Arc<Mutex<HashMap<String, AuthenticationSession>>>> =
 pub async fn start_registration(
     node: &Node,
 ) -> Result<(CreationChallengeResponse, String), WebauthnError> {
-    /// - obtain did:key from bootstrap, or generate new
-    /// - get credential id linked to did:key in persistence (PassKey table)
-    /// - trigger start_passkey_registration call
-    /// - use did:key as unique_id and usernames
-    /// - use obtained credential id as exclude_credentials
-    /// - map did:key to reg_state (kv-store)
     info!("Starting registration.");
 
     let uuid = Uuid::new_v4();
     let device_id = node.node_data.id.clone();
 
-    // TODO: Query existing credentials for this device_id and exclude them
     // Query existing credentials for this device_id and exclude them
     let existing_creds = get_existing_credentials(&node.db, &device_id)
         .await
