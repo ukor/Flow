@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./App.css";
+import { logger } from './utils/logger';
 import FlowLogo from "./components/FlowLogo";
 import ElectronInfo from "./components/ElectronInfo";
 
@@ -72,6 +73,8 @@ function App() {
         extensions: credential.getClientExtensionResults(),
       };
 
+      logger.info(JSON.stringify(credentialJSON, null, 2));
+
       // 5. Send to server for verification
       const verificationResp = await fetch('http://localhost:8080/api/v1/webauthn/finish_registration', {
         method: 'POST',
@@ -96,7 +99,7 @@ function App() {
         setErrorMessage(`Registration failed: ${JSON.stringify(verificationJSON, null, 2)}`);
       }
     } catch (error: any) {
-      console.error('Registration failed:', error)
+      logger.error('Registration failed:', error)
       if (!errorMessage) { // Only set if not already set by inner catch
         setErrorMessage(`Registration failed: ${error.message}`)
       }
@@ -166,6 +169,8 @@ function App() {
         type: credential.type,
       };
 
+      logger.info(JSON.stringify(credentialJSON, null, 2));
+
       // 5. Send to server for verification
       const verificationResp = await fetch('http://localhost:8080/api/v1/webauthn/finish_authentication', {
         method: 'POST',
@@ -190,7 +195,7 @@ function App() {
         setErrorMessage(`Authentication failed: ${JSON.stringify(verificationJSON, null, 2)}`);
       }
     } catch (error: any) {
-      console.error('Authentication failed:', error)
+      logger.error('Authentication failed:', error)
       setErrorMessage(`Authentication failed: ${error.message}`)
     } finally {
       setIsAuthenticating(false)

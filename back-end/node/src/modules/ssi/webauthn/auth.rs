@@ -423,7 +423,7 @@ async fn get_passkeys_by_device_id(
 
 /// Retrieve a single passkey by credential_id
 /// Used during authentication to find the passkey for verification
-async fn get_passkey_by_credential_id(
+async fn _get_passkey_by_credential_id(
     db: &DatabaseConnection,
     credential_id: &[u8],
 ) -> Result<Option<(pass_key::Model, Passkey)>, Box<dyn std::error::Error>> {
@@ -471,8 +471,7 @@ async fn get_existing_credentials(
 }
 
 /// Update the sign_count for a passkey after successful authentication
-/// CRITICAL for security: detects cloned authenticators
-async fn update_sign_count(
+async fn _update_sign_count(
     db: &DatabaseConnection,
     passkey_id: i32,
     new_count: u32,
