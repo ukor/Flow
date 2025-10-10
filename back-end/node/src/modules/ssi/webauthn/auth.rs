@@ -187,12 +187,12 @@ pub async fn finish_registration(
     Ok((did, did_doc_json))
 }
 
-async fn store_passkey(
+pub async fn store_passkey(
     db: &DatabaseConnection,
     user_id: i32,
     device_id: &str,
     passkey: &Passkey,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<pass_key::ActiveModel, Box<dyn std::error::Error>> {
     info!(
         "Storing passkey for user {} with device_id {}",
         user_id, device_id
@@ -236,7 +236,7 @@ async fn store_passkey(
                 "Successfully saved Passkey: {}, Device_id: {}, Public Key: {:x?}",
                 passkey.id, device_id, passkey.public_key
             );
-            Ok(())
+            Ok(passkey.into())
         }
         Err(e) => Err(Box::new(e)),
     }
@@ -343,7 +343,7 @@ pub async fn finish_authentication(
 }
 
 /// Get all passkeys for a specific device
-async fn get_passkeys_for_device(
+pub async fn get_passkeys_for_device(
     db: &DatabaseConnection,
     device_id: &str,
 ) -> Result<Vec<Passkey>, Box<dyn std::error::Error>> {

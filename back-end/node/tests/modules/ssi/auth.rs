@@ -1,10 +1,10 @@
-use crate::bootstrap::init::setup_test_node;
+use crate::{bootstrap::init::setup_test_node, modules::ssi::fixtures::load_passkey};
 use base64::{Engine as _, prelude::BASE64_STANDARD};
 use migration::{Migrator, MigratorTrait};
 use node::api::node::Node;
 use node::bootstrap::init::NodeData;
 use node::modules::ssi::webauthn::state::AuthState;
-use sea_orm::Database;
+use sea_orm::{ColumnTrait, Database, QueryFilter};
 use tempfile::TempDir;
 use webauthn_authenticator_rs::{AuthenticatorBackend, softpasskey::SoftPasskey};
 use webauthn_rs::prelude::Url;
@@ -290,4 +290,252 @@ async fn test_end_to_end_registration_and_authentication() {
     // Verify authentication result
     assert!(auth_result.user_verified());
     assert_eq!(auth_result.counter(), 1); // First authentication
+}
+
+#[tokio::test]
+async fn test_store_passkey_success() {
+    use entity::user;
+    use node::modules::ssi::webauthn::auth::store_passkey;
+    use sea_orm::{ActiveModelTrait, NotSet, Set};
+    use webauthn_rs::prelude::Passkey;
+
+    // Setup test database
+    let temp_dir = TempDir::new().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
+    let db = Database::connect(&db_url).await.unwrap();
+    Migrator::up(&db, None).await.unwrap();
+
+    // Create a test user first
+    let test_user = user::ActiveModel {
+        id: NotSet,
+        did: Set("did:key:test123".to_string()),
+        username: Set("test_user".to_string()),
+        display_name: Set("Test User".to_string()),
+        device_ids: Set(r#"["test-device-123"]"#.to_string()),
+        public_key_jwk: Set("{}".to_string()),
+        time_created: Set(chrono::Utc::now().into()),
+        last_login: Set(chrono::Utc::now().into()),
+    };
+
+    let user_model = test_user.insert(&db).await.unwrap();
+    println!("Created test user with ID: {}", user_model.id);
+
+    // Create a test passkey (using fixture JSON)
+    let (passkey, _passkey_json) = load_passkey();
+    let device_id = "test-device-store-123";
+
+    // Call the actual store_passkey function from auth.rs
+    let result = store_passkey(&db, user_model.id, device_id, &passkey).await;
+
+    assert!(
+        result.is_ok(),
+        "store_passkey should succeed: {:?}",
+        result.err()
+    );
+
+    println!("Successfully stored passkey using store_passkey function");
+
+    // Verify the passkey was stored by retrieving it
+    use entity::pass_key;
+    use sea_orm::EntityTrait;
+
+    let stored_passkeys = pass_key::Entity::find()
+        .filter(pass_key::Column::DeviceId.eq(device_id))
+        .all(&db)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        stored_passkeys.len(),
+        1,
+        "Should have exactly 1 passkey stored"
+    );
+
+    let stored = &stored_passkeys[0];
+    assert_eq!(stored.user_id, user_model.id);
+    assert_eq!(stored.device_id, device_id);
+    assert_eq!(stored.sign_count, 0);
+    assert_eq!(stored.authentication_count, 0);
+
+    // Verify the credential_id matches
+    let expected_cred_id: Vec<u8> = passkey.cred_id().as_ref().to_vec();
+    assert_eq!(stored.credential_id, expected_cred_id);
+
+    // Verify the JSON data can be deserialized back to a Passkey
+    let deserialized_passkey: Passkey = serde_json::from_str(&stored.json_data).unwrap();
+    assert_eq!(
+        deserialized_passkey.cred_id(),
+        passkey.cred_id(),
+        "Deserialized passkey should match original"
+    );
+
+    println!("Passkey verification complete - all fields match!");
+}
+
+#[tokio::test]
+async fn test_get_passkeys_for_device() {
+    use entity::user;
+    use node::modules::ssi::webauthn::auth::get_passkeys_for_device;
+    use sea_orm::{ActiveModelTrait, NotSet, Set};
+    use webauthn_rs::prelude::Passkey; // Import the actual function
+
+    // Setup test database
+    let temp_dir = TempDir::new().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
+    let db = Database::connect(&db_url).await.unwrap();
+    Migrator::up(&db, None).await.unwrap();
+
+    // Create a test user
+    let test_user = user::ActiveModel {
+        id: NotSet,
+        did: Set("did:key:test456".to_string()),
+        username: Set("test_user".to_string()),
+        display_name: Set("Test User".to_string()),
+        device_ids: Set(r#"["device-A", "device-B"]"#.to_string()),
+        public_key_jwk: Set("{}".to_string()),
+        time_created: Set(chrono::Utc::now().into()),
+        last_login: Set(chrono::Utc::now().into()),
+    };
+
+    let user_model = test_user.insert(&db).await.unwrap();
+
+    // Use valid base64-encoded credential IDs
+    let cred_ids = [
+        "bpIp0SwDYrqbo2IGg_lDJJUfoAs", // device-A, passkey 0
+        "zN067-GTNf2MeTfaAVnCl_nXHVQ", // device-A, passkey 1
+        "qk6VrJAZ_BSkdh-amMu_QyMbZ1o", // device-B, passkey 0
+    ];
+
+    // Create test passkey JSON template
+    let passkey_json_template = r#"{
+        "cred": {
+            "cred_id": "CRED_ID_PLACEHOLDER",
+            "cred": {
+                "type_": "ES256",
+                "key": {
+                    "EC_EC2": {
+                        "curve": "SECP256R1",
+                        "x": "fLO-YipbYWNFU4De2Zrx-vkXV_0nJSyftd0g3CXmQvk",
+                        "y": "3UJufImjr2da-STs1-14FxWWviCE4uFsGjuXbDoeGsc"
+                    }
+                }
+            },
+            "counter": 0,
+            "transports": null,
+            "user_verified": true,
+            "backup_eligible": true,
+            "backup_state": true,
+            "registration_policy": "required",
+            "extensions": {
+                "cred_protect": "Ignored",
+                "hmac_create_secret": "NotRequested",
+                "appid": "NotRequested",
+                "cred_props": "Ignored"
+            },
+            "attestation": {
+                "data": "None",
+                "metadata": "None"
+            },
+            "attestation_format": "none"
+        }
+    }"#;
+
+    // Store 2 passkeys for device-A
+    use entity::pass_key;
+    for i in 0..2 {
+        let passkey_json = passkey_json_template.replace("CRED_ID_PLACEHOLDER", cred_ids[i]);
+        let passkey: Passkey = serde_json::from_str(&passkey_json).unwrap();
+        let credential_id: Vec<u8> = passkey.cred_id().as_ref().to_vec();
+        let public_key = serde_json::to_vec(&passkey.get_public_key()).unwrap();
+
+        let new_passkey = pass_key::ActiveModel {
+            id: NotSet,
+            user_id: Set(user_model.id),
+            device_id: Set("device-A".to_string()),
+            credential_id: Set(credential_id),
+            public_key: Set(public_key),
+            sign_count: Set(0),
+            authentication_count: Set(0),
+            name: Set(format!("Passkey-device-A-{}", i)),
+            attestation: Set("None".to_string()),
+            json_data: Set(passkey_json),
+            time_created: Set(chrono::Utc::now().into()),
+            last_authenticated: Set(chrono::Utc::now().into()),
+        };
+
+        new_passkey.insert(&db).await.unwrap();
+    }
+
+    // Store 1 passkey for device-B
+    let passkey_json_b = passkey_json_template.replace("CRED_ID_PLACEHOLDER", cred_ids[2]);
+    let passkey_b: Passkey = serde_json::from_str(&passkey_json_b).unwrap();
+    let credential_id_b: Vec<u8> = passkey_b.cred_id().as_ref().to_vec();
+    let public_key_b = serde_json::to_vec(&passkey_b.get_public_key()).unwrap();
+
+    let new_passkey_b = pass_key::ActiveModel {
+        id: NotSet,
+        user_id: Set(user_model.id),
+        device_id: Set("device-B".to_string()),
+        credential_id: Set(credential_id_b),
+        public_key: Set(public_key_b),
+        sign_count: Set(0),
+        authentication_count: Set(0),
+        name: Set("Passkey-device-B-0".to_string()),
+        attestation: Set("None".to_string()),
+        json_data: Set(passkey_json_b),
+        time_created: Set(chrono::Utc::now().into()),
+        last_authenticated: Set(chrono::Utc::now().into()),
+    };
+
+    new_passkey_b.insert(&db).await.unwrap();
+
+    println!("Stored 2 passkeys for device-A and 1 for device-B");
+
+    // Test: Get passkeys for device-A using the actual get_passkeys_for_device function
+    let passkeys_a = get_passkeys_for_device(&db, "device-A")
+        .await
+        .expect("Should successfully retrieve passkeys for device-A");
+
+    assert_eq!(passkeys_a.len(), 2, "Should have 2 passkeys for device-A");
+    println!(
+        "✓ Successfully retrieved {} passkeys for device-A using get_passkeys_for_device()",
+        passkeys_a.len()
+    );
+
+    // Test: Get passkeys for device-B
+    let passkeys_b = get_passkeys_for_device(&db, "device-B")
+        .await
+        .expect("Should successfully retrieve passkeys for device-B");
+
+    assert_eq!(passkeys_b.len(), 1, "Should have 1 passkey for device-B");
+    println!(
+        "✓ Successfully retrieved {} passkey for device-B using get_passkeys_for_device()",
+        passkeys_b.len()
+    );
+
+    // Test: Get passkeys for non-existent device
+    let passkeys_none = get_passkeys_for_device(&db, "device-C")
+        .await
+        .expect("Should return empty vec for non-existent device");
+
+    assert_eq!(
+        passkeys_none.len(),
+        0,
+        "Should have 0 passkeys for device-C"
+    );
+    println!("✓ Correctly returned 0 passkeys for non-existent device-C");
+
+    // Test: Verify the returned passkeys have correct credential IDs
+    let returned_cred_ids: Vec<String> = passkeys_a
+        .iter()
+        .map(|pk| format!("{:?}", pk.cred_id()))
+        .collect();
+
+    println!("✓ All get_passkeys_for_device tests passed!");
+    println!(
+        "  Returned credential IDs for device-A: {:?}",
+        returned_cred_ids
+    );
 }
