@@ -1,6 +1,5 @@
-use base64::prelude::*;
 use log::{error, info};
-use ssi::dids::{DIDKey, DIDMethod, DIDURL, Document as DIDDocument};
+use ssi::dids::{DIDKey, Document as DIDDocument};
 use ssi::jwk::{JWK, Params as JWKParams};
 use webauthn_rs::prelude::{COSEKey, Passkey};
 
@@ -86,98 +85,36 @@ pub fn cose_to_jwk(cose_key: &COSEKey) -> Result<JWK, Box<dyn std::error::Error>
 fn extract_ec_coordinates(
     cose_key: &COSEKey,
 ) -> Result<(Vec<u8>, Vec<u8>), Box<dyn std::error::Error>> {
-    use serde_cbor::Value;
+    use webauthn_rs::prelude::COSEKeyType;
 
-    // Serialize the entire COSEKey to CBOR
-    let cose_bytes = serde_cbor::to_vec(cose_key)?;
+    match &cose_key.key {
+        COSEKeyType::EC_EC2(ec2_key) => {
+            let x = ec2_key.x.as_ref().to_vec();
+            let y = ec2_key.y.as_ref().to_vec();
 
-    // Parse it back as a CBOR value
-    let cose_value: Value = serde_cbor::from_slice(&cose_bytes)?;
-
-    // Debug: log the structure to see what we're working with
-    info!("COSE key structure: {:?}", cose_value);
-
-    if let Value::Map(map) = cose_value {
-        // Navigate to the nested structure: key -> EC_EC2 -> coordinates
-        let key_map = map
-            .get(&Value::Text("key".to_string()))
-            .and_then(|v| if let Value::Map(m) = v { Some(m) } else { None })
-            .ok_or("Missing 'key' field")?;
-
-        let ec2_map = key_map
-            .get(&Value::Text("EC_EC2".to_string()))
-            .and_then(|v| if let Value::Map(m) = v { Some(m) } else { None })
-            .ok_or("Missing 'EC_EC2' field")?;
-
-        // Extract x coordinate
-        let x = ec2_map
-            .get(&Value::Text("x".to_string()))
-            .and_then(|v| {
-                if let Value::Bytes(bytes) = v {
-                    Some(bytes.clone())
-                } else {
-                    None
-                }
-            })
-            .ok_or("Missing x coordinate")?;
-
-        // Extract y coordinate
-        let y = ec2_map
-            .get(&Value::Text("y".to_string()))
-            .and_then(|v| {
-                if let Value::Bytes(bytes) = v {
-                    Some(bytes.clone())
-                } else {
-                    None
-                }
-            })
-            .ok_or("Missing y coordinate")?;
-
-        Ok((x, y))
-    } else {
-        Err("Invalid COSE key format - expected Map".into())
+            info!(
+                "Extracted EC2 coordinates: x={} bytes, y={} bytes",
+                x.len(),
+                y.len()
+            );
+            Ok((x, y))
+        }
+        _ => Err("Expected EC_EC2 key type for ES256".into()),
     }
 }
 
 /// Extract EdDSA public key from COSE key
 fn extract_eddsa_public_key(cose_key: &COSEKey) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    use serde_cbor::Value;
+    use webauthn_rs::prelude::COSEKeyType;
 
-    // Serialize the entire COSEKey to CBOR
-    let cose_bytes = serde_cbor::to_vec(cose_key)?;
+    match &cose_key.key {
+        COSEKeyType::EC_OKP(okp_key) => {
+            let public_key = okp_key.x.as_ref().to_vec();
 
-    // Parse it back as a CBOR value
-    let cose_value: Value = serde_cbor::from_slice(&cose_bytes)?;
-
-    info!("COSE OKP key structure: {:?}", cose_value);
-
-    if let Value::Map(map) = cose_value {
-        // Navigate to the nested structure: key -> OKP -> x (public key)
-        let key_map = map
-            .get(&Value::Text("key".to_string()))
-            .and_then(|v| if let Value::Map(m) = v { Some(m) } else { None })
-            .ok_or("Missing 'key' field")?;
-
-        let okp_map = key_map
-            .get(&Value::Text("OKP".to_string()))
-            .and_then(|v| if let Value::Map(m) = v { Some(m) } else { None })
-            .ok_or("Missing 'OKP' field")?;
-
-        // Extract x (public key)
-        let public_key = okp_map
-            .get(&Value::Text("x".to_string()))
-            .and_then(|v| {
-                if let Value::Bytes(bytes) = v {
-                    Some(bytes.clone())
-                } else {
-                    None
-                }
-            })
-            .ok_or("Missing public key (x)")?;
-
-        Ok(public_key)
-    } else {
-        Err("Invalid COSE key format - expected Map".into())
+            info!("Extracted OKP public key: {} bytes", public_key.len());
+            Ok(public_key)
+        }
+        _ => Err("Expected EC_OKP key type for EdDSA".into()),
     }
 }
 
