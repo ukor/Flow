@@ -82,7 +82,7 @@ pub fn cose_to_jwk(cose_key: &COSEKey) -> Result<JWK, Box<dyn std::error::Error>
 }
 
 /// Extract EC (P-256) coordinates from COSE key
-fn extract_ec_coordinates(
+pub fn extract_ec_coordinates(
     cose_key: &COSEKey,
 ) -> Result<(Vec<u8>, Vec<u8>), Box<dyn std::error::Error>> {
     use webauthn_rs::prelude::COSEKeyType;
@@ -104,7 +104,7 @@ fn extract_ec_coordinates(
 }
 
 /// Extract EdDSA public key from COSE key
-fn extract_eddsa_public_key(cose_key: &COSEKey) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn extract_eddsa_public_key(cose_key: &COSEKey) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     use webauthn_rs::prelude::COSEKeyType;
 
     match &cose_key.key {

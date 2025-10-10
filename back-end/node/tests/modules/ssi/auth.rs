@@ -2,7 +2,7 @@ use crate::{
     bootstrap::init::{
         setup_test_db, setup_test_multi_node, setup_test_node, setup_test_node_with_device_id,
     },
-    modules::ssi::fixtures::load_passkey,
+    modules::ssi::fixtures::load_es256_passkey,
 };
 use base64::{Engine as _, prelude::BASE64_STANDARD};
 use migration::{Migrator, MigratorTrait};
@@ -473,7 +473,7 @@ async fn test_store_passkey_success() {
     println!("Created test user with ID: {}", user_model.id);
 
     // Create a test passkey (using fixture JSON)
-    let (passkey, _passkey_json) = load_passkey();
+    let (passkey, _passkey_json) = load_es256_passkey();
     let device_id = "test-device-store-123";
 
     // Call the actual store_passkey function from auth.rs
