@@ -1,4 +1,9 @@
-use crate::{bootstrap::init::setup_test_node, modules::ssi::fixtures::load_passkey};
+use crate::{
+    bootstrap::init::{
+        setup_test_db, setup_test_multi_node, setup_test_node, setup_test_node_with_device_id,
+    },
+    modules::ssi::fixtures::load_passkey,
+};
 use base64::{Engine as _, prelude::BASE64_STANDARD};
 use migration::{Migrator, MigratorTrait};
 use node::api::node::Node;
@@ -14,7 +19,7 @@ use webauthn_rs::prelude::Url;
 #[tokio::test]
 async fn test_start_registration_creates_challenge() {
     // Setup
-    let (node, _temp) = setup_test_node().await;
+    let (node, _temp) = setup_test_node_with_device_id("test-device-123").await;
 
     // Execute: Start registration
     let result = node.start_webauthn_registration().await;
@@ -134,14 +139,7 @@ async fn test_start_registration_challenge_is_unique() {
 
 #[tokio::test]
 async fn test_start_registration_with_multiple_devices() {
-    // Setup
-    let temp_dir = TempDir::new().unwrap();
-
-    // Create database (shared)
-    let db_path = temp_dir.path().join("test.db");
-    let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
-    let db = Database::connect(&db_url).await.unwrap();
-    Migrator::up(&db, None).await.unwrap();
+    let (db, temp_dir) = setup_test_multi_node().await;
 
     // Create two nodes with different device IDs
     let kv_path1 = temp_dir.path().join("kv1");
@@ -293,18 +291,171 @@ async fn test_end_to_end_registration_and_authentication() {
 }
 
 #[tokio::test]
+async fn test_finish_registration_creates_user_and_did() {
+    use entity::{pass_key, user};
+    use sea_orm::EntityTrait;
+
+    let device_id = "test-device-registration";
+    let (node, _temp) = setup_test_node_with_device_id(device_id).await;
+
+    // Verify no users exist initially
+    let users_before = user::Entity::find().all(&node.db).await.unwrap();
+    assert_eq!(users_before.len(), 0, "Should start with no users");
+
+    // Start registration to get a challenge
+    let (creation_challenge, challenge_id) = node
+        .start_webauthn_registration()
+        .await
+        .expect("Failed to start registration");
+
+    println!("Registration challenge created: {}", challenge_id);
+
+    // Simulate authenticator creating credential
+    let mut authenticator = SoftPasskey::new(true);
+    let registration_credential = authenticator
+        .perform_register(
+            Url::parse("http://localhost:3000").unwrap(),
+            creation_challenge.public_key.clone(),
+            60000,
+        )
+        .expect("Failed to create credential");
+
+    // Execute: Finish registration
+    let (did, did_doc_json) = node
+        .finish_webauthn_registration(&challenge_id, registration_credential)
+        .await
+        .expect("Failed to finish registration");
+
+    println!("Registration completed!");
+    println!("  DID: {}", did);
+    println!("  DID Document length: {} bytes", did_doc_json.len());
+
+    // ===== VERIFY USER CREATION =====
+
+    // 1. Verify a user was created
+    let users = user::Entity::find().all(&node.db).await.unwrap();
+    assert_eq!(
+        users.len(),
+        1,
+        "Should have exactly 1 user after registration"
+    );
+
+    let created_user = &users[0];
+    println!("Created user ID: {}", created_user.id);
+
+    // 2. Verify user has the correct DID
+    assert_eq!(
+        created_user.did, did,
+        "User's DID should match returned DID"
+    );
+    assert!(
+        created_user.did.starts_with("did:key:"),
+        "DID should use did:key method"
+    );
+
+    // 3. Verify user has the device_id
+    let device_ids: Vec<String> =
+        serde_json::from_str(&created_user.device_ids).expect("Should parse device_ids JSON");
+    assert!(
+        device_ids.contains(&device_id.to_string()),
+        "User should have the device_id in their device_ids list"
+    );
+    println!("User device_ids: {:?}", device_ids);
+
+    // 4. Verify user has DID document stored
+    assert!(
+        !created_user.public_key_jwk.is_empty(),
+        "User should have DID document stored"
+    );
+    assert_eq!(
+        created_user.public_key_jwk, did_doc_json,
+        "Stored DID document should match returned document"
+    );
+
+    // 5. Verify username matches device_id
+    assert_eq!(
+        created_user.username, device_id,
+        "Username should match device_id"
+    );
+
+    // ===== VERIFY PASSKEY STORAGE =====
+
+    // 6. Verify a passkey was stored for this user
+    let passkeys = pass_key::Entity::find()
+        .filter(pass_key::Column::UserId.eq(created_user.id))
+        .all(&node.db)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        passkeys.len(),
+        1,
+        "Should have exactly 1 passkey stored for user"
+    );
+
+    let stored_passkey = &passkeys[0];
+    println!("Stored passkey ID: {}", stored_passkey.id);
+
+    // 7. Verify passkey is linked to correct device
+    assert_eq!(
+        stored_passkey.device_id, device_id,
+        "Passkey should be linked to correct device_id"
+    );
+
+    // 8. Verify passkey has valid data
+    assert!(
+        !stored_passkey.credential_id.is_empty(),
+        "Passkey should have credential_id"
+    );
+    assert!(
+        !stored_passkey.public_key.is_empty(),
+        "Passkey should have public_key"
+    );
+    assert_eq!(
+        stored_passkey.sign_count, 0,
+        "New passkey should have sign_count of 0"
+    );
+    assert_eq!(
+        stored_passkey.authentication_count, 0,
+        "New passkey should have authentication_count of 0"
+    );
+
+    // 9. Verify passkey JSON data can be deserialized
+    use webauthn_rs::prelude::Passkey;
+    let _passkey: Passkey = serde_json::from_str(&stored_passkey.json_data)
+        .expect("Should be able to deserialize passkey JSON");
+
+    // ===== VERIFY DID DOCUMENT STRUCTURE =====
+
+    // 10. Verify DID document can be parsed as JSON
+    let did_doc: serde_json::Value =
+        serde_json::from_str(&did_doc_json).expect("DID document should be valid JSON");
+
+    // Verify it has expected DID document fields
+    assert!(
+        did_doc.get("id").is_some(),
+        "DID document should have 'id' field"
+    );
+    assert!(
+        did_doc.get("verificationMethod").is_some() || did_doc.get("verification_method").is_some(),
+        "DID document should have verification method"
+    );
+
+    println!("✓ All user and DID creation checks passed!");
+    println!("  User ID: {}", created_user.id);
+    println!("  DID: {}", did);
+    println!("  Device ID: {}", device_id);
+    println!("  Passkey ID: {}", stored_passkey.id);
+}
+
+#[tokio::test]
 async fn test_store_passkey_success() {
     use entity::user;
     use node::modules::ssi::webauthn::auth::store_passkey;
     use sea_orm::{ActiveModelTrait, NotSet, Set};
     use webauthn_rs::prelude::Passkey;
 
-    // Setup test database
-    let temp_dir = TempDir::new().unwrap();
-    let db_path = temp_dir.path().join("test.db");
-    let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
-    let db = Database::connect(&db_url).await.unwrap();
-    Migrator::up(&db, None).await.unwrap();
+    let (db, _temp) = setup_test_db().await;
 
     // Create a test user first
     let test_user = user::ActiveModel {

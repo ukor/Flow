@@ -169,7 +169,6 @@ pub fn did_document_to_json(doc: &DIDDocument) -> Result<String, Box<dyn std::er
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_did_generation() {

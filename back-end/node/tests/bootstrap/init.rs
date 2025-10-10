@@ -1,17 +1,22 @@
 use chrono::{DateTime, Utc};
 use node::bootstrap::init::{AuthMetadata, initialize_config_dir};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use migration::{Migrator, MigratorTrait};
 use node::api::node::Node;
 use node::bootstrap::init::NodeData;
 use node::modules::ssi::webauthn::state::AuthState;
-use sea_orm::Database;
+use sea_orm::{Database, DatabaseConnection};
 use tempfile::TempDir;
 
 // Helper to create test Node
 pub async fn setup_test_node() -> (Node, TempDir) {
+    setup_test_node_with_device_id("test-node--").await
+}
+
+/// Setup a test node with a custom device ID
+pub async fn setup_test_node_with_device_id(device_id: &str) -> (Node, TempDir) {
     let temp_dir = TempDir::new().unwrap();
 
     // Setup database
@@ -32,9 +37,9 @@ pub async fn setup_test_node() -> (Node, TempDir) {
     };
     let auth_state = AuthState::new(auth_config).unwrap();
 
-    // Create node data
+    // Create node data with custom device_id
     let node_data = NodeData {
-        id: "test-device-123".to_string(),
+        id: device_id.to_string(),
         private_key: vec![0u8; 32],
         public_key: vec![0u8; 32],
     };
@@ -42,6 +47,43 @@ pub async fn setup_test_node() -> (Node, TempDir) {
     let node = Node::new(node_data, db, kv, auth_state);
 
     (node, temp_dir)
+}
+
+/// Setup just a test database (no node) - useful for testing storage functions
+pub async fn setup_test_db() -> (DatabaseConnection, TempDir) {
+    let temp_dir = TempDir::new().unwrap();
+
+    let db_path = temp_dir.path().join("test.db");
+    let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
+    let db = Database::connect(&db_url).await.unwrap();
+    Migrator::up(&db, None).await.unwrap();
+
+    (db, temp_dir)
+}
+
+/// Setup test infrastructure for multiple nodes sharing the same database
+pub async fn setup_test_multi_node() -> (DatabaseConnection, TempDir) {
+    setup_test_db().await
+}
+
+/// Create a node with custom device_id using existing database
+pub fn create_test_node_with_db(device_id: &str, db: DatabaseConnection, kv_path: &Path) -> Node {
+    let kv = sled::open(kv_path).unwrap();
+
+    let auth_config = node::modules::ssi::webauthn::state::AuthConfig {
+        rp_id: "localhost".to_string(),
+        rp_origin: "http://localhost:3000".to_string(),
+        rp_name: "Test Flow".to_string(),
+    };
+    let auth_state = AuthState::new(auth_config).unwrap();
+
+    let node_data = NodeData {
+        id: device_id.to_string(),
+        private_key: vec![0u8; 32],
+        public_key: vec![0u8; 32],
+    };
+
+    Node::new(node_data, db, kv, auth_state)
 }
 
 fn compute_did_from_pubkey(pub_key_bytes: &[u8]) -> String {
