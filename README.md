@@ -27,6 +27,7 @@ Flow is a decentralized coordination platform enabling agents and users to co-cr
 9.  [**Execution Layer**](./specs/09_execution_layer.md): Handles the definition and running of workflows as Directed Acyclic Graphs (DAGs), managing signed state transitions.
 10.  [**Compute Layer**](./specs/10_compute_layer.md): Executes the actual computational tasks defined in the Execution Layer, potentially using various backends (local, distributed like Bacalhau) and supporting verifiable computation.
 11. [**Incentive Layer**](./specs/11_incentive_layer.md): Defines and manages programmable rewards and contribution tracking based on provenance data in the knowledge graph.
+12. **Physical Layer**: Provides verifiable access to decentralized physical infrastructure (compute, network, storage, sensors, actuators), using DePIN protocols and trust attestations.
 
 
 ## Flow of Activity
