@@ -45,8 +45,7 @@ Flow is a decentralized coordination platform enabling agents and users to co-cr
 
 
 ## Running the Codebase
-
-This project uses a Makefile to simplify common development tasks. The Makefile is designed to handle multiple binary packages within the Rust workspace.
+The project uses [nx](https://nx.dev/) to manage the workspace. You will need to install nx to run the commands below.
 
 ### Prerequisites
 
