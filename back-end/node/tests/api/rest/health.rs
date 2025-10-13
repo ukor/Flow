@@ -1,3 +1,5 @@
+use crate::bootstrap::init::setup_test_server;
+
 use super::helpers::*;
 
 use axum::body::Body;
@@ -7,10 +9,10 @@ use tower::ServiceExt;
 #[tokio::test]
 async fn test_health_endpoint_returns_200() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute
-    let (status, body) = get_request(&app, "/api/v1/health").await;
+    let (status, body) = get_request(&server.router, "/api/v1/health").await;
 
     // Assert
     assert_eq!(
@@ -43,10 +45,10 @@ async fn test_health_endpoint_returns_200() {
 #[tokio::test]
 async fn test_health_endpoint_response_format() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute
-    let (status, body) = get_request(&app, "/api/v1/health").await;
+    let (status, body) = get_request(&server.router, "/api/v1/health").await;
 
     // Assert response format
     assert_eq!(status, StatusCode::OK);
@@ -75,10 +77,11 @@ async fn test_health_endpoint_response_format() {
 #[tokio::test]
 async fn test_cors_headers_present() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Make OPTIONS request (preflight)
-    let response = app
+    let response = server
+        .router
         .oneshot(
             Request::builder()
                 .uri("/api/v1/health")
@@ -109,10 +112,11 @@ async fn test_cors_headers_present() {
 #[tokio::test]
 async fn test_health_endpoint_allows_get_method() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Verify GET is allowed
-    let response = app
+    let response = server
+        .router
         .oneshot(
             Request::builder()
                 .uri("/api/v1/health")
@@ -134,10 +138,11 @@ async fn test_health_endpoint_allows_get_method() {
 #[tokio::test]
 async fn test_health_endpoint_rejects_post_method() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Try POST (should not be allowed)
-    let response = app
+    let response = server
+        .router
         .oneshot(
             Request::builder()
                 .uri("/api/v1/health")
@@ -159,15 +164,15 @@ async fn test_health_endpoint_rejects_post_method() {
 #[tokio::test]
 async fn test_health_endpoint_multiple_calls() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Call health endpoint multiple times
-    let (status1, body1) = get_request(&app, "/api/v1/health").await;
+    let (status1, body1) = get_request(&server.router, "/api/v1/health").await;
 
     // Small delay to ensure different timestamps
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let (status2, body2) = get_request(&app, "/api/v1/health").await;
+    let (status2, body2) = get_request(&server.router, "/api/v1/health").await;
 
     // Assert - Both calls should succeed
     assert_eq!(status1, StatusCode::OK);
@@ -188,10 +193,11 @@ async fn test_health_endpoint_multiple_calls() {
 #[tokio::test]
 async fn test_health_endpoint_content_type() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute
-    let response = app
+    let response = server
+        .router
         .oneshot(
             Request::builder()
                 .uri("/api/v1/health")

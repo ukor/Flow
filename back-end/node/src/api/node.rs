@@ -12,6 +12,7 @@ use webauthn_rs::prelude::{
     RequestChallengeResponse,
 };
 
+#[derive(Clone)]
 pub struct Node {
     pub node_data: NodeData,
     pub db: DatabaseConnection,

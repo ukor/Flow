@@ -1,5 +1,7 @@
-use crate::api::rest::helpers::*;
+use crate::{api::rest::helpers::*, bootstrap::init::setup_test_server};
 use axum::http::StatusCode;
+use entity::pass_key;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use webauthn_authenticator_rs::{AuthenticatorBackend, softpasskey::SoftPasskey};
 use webauthn_rs::prelude::Url;
@@ -7,10 +9,11 @@ use webauthn_rs::prelude::Url;
 #[tokio::test]
 async fn test_start_authentication_returns_challenge() {
     // Setup - First register a passkey so we have something to authenticate with
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Do a complete registration first
-    let (reg_status, reg_body) = get_request(&app, "/api/v1/webauthn/start_registration").await;
+    let (reg_status, reg_body) =
+        get_request(&server.router, "/api/v1/webauthn/start_registration").await;
     assert_eq!(reg_status, StatusCode::OK);
 
     let challenge_id = reg_body["challenge_id"].as_str().unwrap();
@@ -32,13 +35,21 @@ async fn test_start_authentication_returns_challenge() {
         "credential": registration_credential
     });
 
-    let (finish_status, _) =
-        post_request(&app, "/api/v1/webauthn/finish_registration", reg_payload).await;
+    let (finish_status, _) = post_request(
+        &server.router,
+        "/api/v1/webauthn/finish_registration",
+        reg_payload,
+    )
+    .await;
     assert_eq!(finish_status, StatusCode::OK);
 
     // Now test authentication start
-    let (status, body) =
-        post_request(&app, "/api/v1/webauthn/start_authentication", json!({})).await;
+    let (status, body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/start_authentication",
+        json!({}),
+    )
+    .await;
 
     // Assert
     assert_eq!(status, StatusCode::OK, "Should return 200 OK");
@@ -70,11 +81,15 @@ async fn test_start_authentication_returns_challenge() {
 #[tokio::test]
 async fn test_start_authentication_no_passkeys() {
     // Setup - Fresh server with no registered passkeys
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Try to start authentication without any registered passkeys
-    let (status, body) =
-        post_request(&app, "/api/v1/webauthn/start_authentication", json!({})).await;
+    let (status, body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/start_authentication",
+        json!({}),
+    )
+    .await;
 
     // Assert - Should fail because no passkeys are registered
     // Note: This depends on your implementation - it might return an error or an empty allowCredentials
@@ -104,10 +119,11 @@ async fn test_start_authentication_no_passkeys() {
 #[tokio::test]
 async fn test_start_authentication_response_format() {
     // Setup with registration
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Register a passkey first
-    let (reg_status, reg_body) = get_request(&app, "/api/v1/webauthn/start_registration").await;
+    let (reg_status, reg_body) =
+        get_request(&server.router, "/api/v1/webauthn/start_registration").await;
     assert_eq!(reg_status, StatusCode::OK);
 
     let challenge_id = reg_body["challenge_id"].as_str().unwrap();
@@ -127,11 +143,20 @@ async fn test_start_authentication_response_format() {
         "credential": registration_credential
     });
 
-    post_request(&app, "/api/v1/webauthn/finish_registration", reg_payload).await;
+    post_request(
+        &server.router,
+        "/api/v1/webauthn/finish_registration",
+        reg_payload,
+    )
+    .await;
 
     // Execute - Start authentication
-    let (status, body) =
-        post_request(&app, "/api/v1/webauthn/start_authentication", json!({})).await;
+    let (status, body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/start_authentication",
+        json!({}),
+    )
+    .await;
 
     // Assert response format
     assert_eq!(status, StatusCode::OK);
@@ -172,10 +197,11 @@ async fn test_start_authentication_response_format() {
 #[tokio::test]
 async fn test_finish_authentication_valid_payload() {
     // Setup - Complete registration and authentication flow
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // 1. Register a passkey
-    let (reg_status, reg_body) = get_request(&app, "/api/v1/webauthn/start_registration").await;
+    let (reg_status, reg_body) =
+        get_request(&server.router, "/api/v1/webauthn/start_registration").await;
     assert_eq!(reg_status, StatusCode::OK);
 
     let reg_challenge_id = reg_body["challenge_id"].as_str().unwrap();
@@ -195,13 +221,21 @@ async fn test_finish_authentication_valid_payload() {
         "credential": registration_credential
     });
 
-    let (finish_reg_status, _) =
-        post_request(&app, "/api/v1/webauthn/finish_registration", reg_payload).await;
+    let (finish_reg_status, _) = post_request(
+        &server.router,
+        "/api/v1/webauthn/finish_registration",
+        reg_payload,
+    )
+    .await;
     assert_eq!(finish_reg_status, StatusCode::OK);
 
     // 2. Start authentication
-    let (auth_start_status, auth_start_body) =
-        post_request(&app, "/api/v1/webauthn/start_authentication", json!({})).await;
+    let (auth_start_status, auth_start_body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/start_authentication",
+        json!({}),
+    )
+    .await;
     assert_eq!(auth_start_status, StatusCode::OK);
 
     let auth_challenge_id = auth_start_body["challenge_id"].as_str().unwrap();
@@ -222,8 +256,12 @@ async fn test_finish_authentication_valid_payload() {
         "credential": authentication_credential
     });
 
-    let (status, body) =
-        post_request(&app, "/api/v1/webauthn/finish_authentication", auth_payload).await;
+    let (status, body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/finish_authentication",
+        auth_payload,
+    )
+    .await;
 
     // Assert
     assert_eq!(status, StatusCode::OK, "Authentication should succeed");
@@ -237,15 +275,19 @@ async fn test_finish_authentication_valid_payload() {
 #[tokio::test]
 async fn test_finish_authentication_missing_challenge_id() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Try to finish authentication without challenge_id
     let payload = json!({
         "credential": {}
     });
 
-    let (status, body) =
-        post_request(&app, "/api/v1/webauthn/finish_authentication", payload).await;
+    let (status, body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/finish_authentication",
+        payload,
+    )
+    .await;
 
     // Assert
     assert_eq!(
@@ -265,15 +307,19 @@ async fn test_finish_authentication_missing_challenge_id() {
 #[tokio::test]
 async fn test_finish_authentication_missing_credential() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Try to finish authentication without credential
     let payload = json!({
         "challenge_id": "fake-challenge-id"
     });
 
-    let (status, body) =
-        post_request(&app, "/api/v1/webauthn/finish_authentication", payload).await;
+    let (status, body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/finish_authentication",
+        payload,
+    )
+    .await;
 
     // Assert
     assert_eq!(
@@ -293,7 +339,7 @@ async fn test_finish_authentication_missing_credential() {
 #[tokio::test]
 async fn test_finish_authentication_invalid_credential_format() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Try with invalid credential format
     let payload = json!({
@@ -303,8 +349,12 @@ async fn test_finish_authentication_invalid_credential_format() {
         }
     });
 
-    let (status, body) =
-        post_request(&app, "/api/v1/webauthn/finish_authentication", payload).await;
+    let (status, body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/finish_authentication",
+        payload,
+    )
+    .await;
 
     // Assert
     assert_eq!(
@@ -326,7 +376,7 @@ async fn test_finish_authentication_invalid_credential_format() {
 #[tokio::test]
 async fn test_finish_authentication_invalid_challenge_id() {
     // Setup
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Execute - Try with non-existent challenge_id
     let payload = json!({
@@ -343,8 +393,12 @@ async fn test_finish_authentication_invalid_challenge_id() {
         }
     });
 
-    let (status, _body) =
-        post_request(&app, "/api/v1/webauthn/finish_authentication", payload).await;
+    let (status, _body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/finish_authentication",
+        payload,
+    )
+    .await;
 
     // Assert - Should fail with server error (challenge not found)
     assert!(
@@ -359,10 +413,10 @@ async fn test_finish_authentication_invalid_challenge_id() {
 #[tokio::test]
 async fn test_finish_authentication_returns_counter() {
     // Setup - Complete registration and authentication
-    let (app, _temp) = setup_test_server().await;
+    let server = setup_test_server().await;
 
     // Register
-    let (_, reg_body) = get_request(&app, "/api/v1/webauthn/start_registration").await;
+    let (_, reg_body) = get_request(&server.router, "/api/v1/webauthn/start_registration").await;
     let reg_challenge_id = reg_body["challenge_id"].as_str().unwrap();
     let creation_challenge = &reg_body["challenge"];
 
@@ -376,7 +430,7 @@ async fn test_finish_authentication_returns_counter() {
         .unwrap();
 
     post_request(
-        &app,
+        &server.router,
         "/api/v1/webauthn/finish_registration",
         json!({
             "challenge_id": reg_challenge_id,
@@ -386,8 +440,12 @@ async fn test_finish_authentication_returns_counter() {
     .await;
 
     // Authenticate
-    let (_, auth_body) =
-        post_request(&app, "/api/v1/webauthn/start_authentication", json!({})).await;
+    let (_, auth_body) = post_request(
+        &server.router,
+        "/api/v1/webauthn/start_authentication",
+        json!({}),
+    )
+    .await;
     let auth_challenge_id = auth_body["challenge_id"].as_str().unwrap();
 
     let authentication_credential = authenticator
@@ -399,7 +457,7 @@ async fn test_finish_authentication_returns_counter() {
         .unwrap();
 
     let (status, body) = post_request(
-        &app,
+        &server.router,
         "/api/v1/webauthn/finish_authentication",
         json!({
             "challenge_id": auth_challenge_id,
@@ -436,5 +494,31 @@ async fn test_finish_authentication_returns_counter() {
     println!(
         "Authentication result: counter={}, backup_state={}, backup_eligible={}, needs_update={}",
         body["counter"], body["backup_state"], body["backup_eligible"], body["needs_update"]
+    );
+
+    // DB validation - verify counter was updated in database
+    let device_id = server.node.node_data.id; // Or get from setup
+    let passkey = pass_key::Entity::find()
+        .filter(pass_key::Column::DeviceId.eq(device_id))
+        .one(&server.node.db)
+        .await
+        .unwrap()
+        .expect("Passkey should exist");
+
+    assert!(
+        passkey.sign_count > 0,
+        "Sign count should be incremented in DB"
+    );
+
+    // TODO: fix this test so authentication_count is updated
+    // in order to avoid replay attacks..
+    // assert_eq!(
+    //     passkey.authentication_count, 1,
+    //     "Authentication count should be 1"
+    // );
+
+    println!(
+        "Counter validated - DB sign_count: {}, auth_count: {}",
+        passkey.sign_count, passkey.authentication_count
     );
 }

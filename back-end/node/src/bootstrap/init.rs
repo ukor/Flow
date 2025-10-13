@@ -13,6 +13,7 @@ use std::os::unix::fs::PermissionsExt;
 use ed25519_dalek::SigningKey;
 use multibase::Base;
 
+#[derive(Clone)]
 pub struct NodeData {
     pub id: String,
     pub private_key: Vec<u8>,

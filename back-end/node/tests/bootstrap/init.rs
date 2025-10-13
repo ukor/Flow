@@ -1,4 +1,7 @@
+use axum::Router;
 use chrono::{DateTime, Utc};
+use node::api::servers::app_state::AppState;
+use node::api::servers::rest;
 use node::bootstrap::init::{AuthMetadata, initialize_config_dir};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,6 +12,27 @@ use node::bootstrap::init::NodeData;
 use node::modules::ssi::webauthn::state::AuthState;
 use sea_orm::{Database, DatabaseConnection};
 use tempfile::TempDir;
+
+/// Test server container with access to all components
+pub struct TestServer {
+    pub router: Router,
+    pub node: Node,
+    pub temp: TempDir,
+}
+
+/// Setup a test server with app state
+pub async fn setup_test_server() -> TestServer {
+    let (node, temp) = setup_test_node().await;
+    let node_clone = node.clone();
+    let app_state = AppState::new(node);
+    let router = rest::build_router(app_state);
+
+    TestServer {
+        router,
+        node: node_clone,
+        temp,
+    }
+}
 
 // Helper to create test Node
 pub async fn setup_test_node() -> (Node, TempDir) {

@@ -2,25 +2,8 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
-use node::api::servers::app_state::AppState;
-use node::api::servers::rest;
 use serde_json::Value;
-use tempfile::TempDir;
 use tower::ServiceExt;
-
-/// Setup a test server with app state
-pub async fn setup_test_server() -> (Router, TempDir) {
-    // Create test node using bootstrap helpers
-    let (node, temp) = crate::bootstrap::init::setup_test_node().await;
-
-    // Create app state
-    let app_state = AppState::new(node);
-
-    // Use the actual router builder from rest.rs
-    let router = rest::build_router(app_state);
-
-    (router, temp)
-}
 
 /// Helper to make GET request
 pub async fn get_request(app: &Router, uri: &str) -> (StatusCode, Value) {
