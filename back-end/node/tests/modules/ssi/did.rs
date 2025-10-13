@@ -1,4 +1,4 @@
-use node::modules::ssi::did::{
+use node::modules::ssi::did::util::{
     cose_to_jwk, create_did_document, did_document_to_json, extract_ec_coordinates,
     extract_eddsa_public_key, generate_did_key_from_passkey,
 };
