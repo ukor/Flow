@@ -12,7 +12,8 @@ use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
 use webauthn_rs::prelude::{PublicKeyCredential, RegisterPublicKeyCredential};
 
-pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError> {
+/// Build the router with all routes configured
+pub fn build_router(app_state: AppState) -> Router {
     // Configure CORS
     let cors = CorsLayer::new()
         // Allow requests from these origins
@@ -31,7 +32,7 @@ pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError
         .max_age(std::time::Duration::from_secs(3600));
 
     // Configure Router
-    let app = Router::new()
+    Router::new()
         .route(
             "/api/v1/webauthn/start_registration",
             get(start_webauthn_registration),
@@ -50,8 +51,12 @@ pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError
         )
         .route("/api/v1/spaces", post(create_space))
         .route("/api/v1/health", get(health_check))
-        .with_state(app_state.clone())
-        .layer(cors);
+        .with_state(app_state)
+        .layer(cors)
+}
+
+pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError> {
+    let app = build_router(app_state.clone());
 
     let bind_addr = format!("0.0.0.0:{}", config.server.rest_port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;

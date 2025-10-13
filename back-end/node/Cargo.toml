@@ -37,3 +37,4 @@ serde_cbor = "0.11.2"
 fs4 = { version = "0.13.1", features = ["async-std", "tokio"] }
 serial_test = "3.2.0"
 webauthn-authenticator-rs = { version = "0.5.2", features = ["softpasskey"] }
+http-body-util = "0.1.3"
