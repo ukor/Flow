@@ -699,3 +699,593 @@ async fn test_parse_peer_did_numalgo2_no_content() {
 
     info!("✓ Successfully handled empty numalgo:2 DID");
 }
+
+// ============================================================================
+// Document Generation Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_create_did_document_from_parsed_peer() {
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::ResolutionOptions;
+
+    // Generate a simple did:peer:0
+    let ed25519_key = [0xAAu8; 32];
+    let mut multicodec_key = vec![0xed, 0x01];
+    multicodec_key.extend_from_slice(&ed25519_key);
+    let encoded = multibase::encode(multibase::Base::Base58Btc, &multicodec_key);
+    let did = format!("did:peer:0{}", encoded);
+
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Should resolve and create DID document");
+
+    let doc = result.did_document.expect("Should have DID document");
+
+    // Verify document structure
+    assert_eq!(doc.id.to_string(), did, "Document ID should match DID");
+    assert!(
+        !doc.verification_method.is_empty(),
+        "Should have verification methods"
+    );
+
+    println!("✓ Successfully created DID document from parsed peer DID");
+}
+
+#[tokio::test]
+async fn test_did_document_verification_methods_correct() {
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::ResolutionOptions;
+
+    // Create numalgo:2 with multiple key types
+    let ed_key = [0xBBu8; 32];
+    let mut ed_multicodec = vec![0xed, 0x01];
+    ed_multicodec.extend_from_slice(&ed_key);
+    let ed_encoded = multibase::encode(multibase::Base::Base58Btc, &ed_multicodec);
+
+    let x_key = [0xCCu8; 32];
+    let mut x_multicodec = vec![0xec, 0x01];
+    x_multicodec.extend_from_slice(&x_key);
+    let x_encoded = multibase::encode(multibase::Base::Base58Btc, &x_multicodec);
+
+    let secp_key = [0xDDu8; 33];
+    let mut secp_multicodec = vec![0xe7, 0x01];
+    secp_multicodec.extend_from_slice(&secp_key);
+    let secp_encoded = multibase::encode(multibase::Base::Base58Btc, &secp_multicodec);
+
+    let did = format!(
+        "did:peer:2.E{}.V{}.E{}",
+        ed_encoded, x_encoded, secp_encoded
+    );
+
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Should resolve");
+
+    let doc = result.did_document.expect("Should have DID document");
+
+    // Verify we have 3 verification methods
+    assert_eq!(
+        doc.verification_method.len(),
+        3,
+        "Should have 3 verification methods"
+    );
+
+    // Verify each method has correct structure
+    for (idx, vm) in doc.verification_method.iter().enumerate() {
+        // Check ID format
+        assert!(
+            vm.id.to_string().contains(&format!("#key-{}", idx + 1)),
+            "Verification method ID should have correct fragment: {}",
+            vm.id
+        );
+
+        // Check controller matches DID
+        assert_eq!(
+            vm.controller.to_string(),
+            did,
+            "Controller should match DID"
+        );
+
+        // Check type is valid
+        assert!(
+            [
+                "Ed25519VerificationKey2020",
+                "X25519KeyAgreementKey2020",
+                "EcdsaSecp256k1VerificationKey2019"
+            ]
+            .contains(&vm.type_.as_str()),
+            "Verification method type should be valid: {}",
+            vm.type_
+        );
+
+        // Check has public key material
+        assert!(
+            vm.properties.contains_key("publicKeyMultibase"),
+            "Should have public key material"
+        );
+    }
+
+    println!("✓ Verification methods correctly generated with proper structure");
+}
+
+#[tokio::test]
+async fn test_did_document_service_endpoints_correct() {
+    use base64::Engine;
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::ResolutionOptions;
+
+    // Create a key
+    let ed_key = [0xEEu8; 32];
+    let mut multicodec_key = vec![0xed, 0x01];
+    multicodec_key.extend_from_slice(&ed_key);
+    let key_encoded = multibase::encode(multibase::Base::Base58Btc, &multicodec_key);
+
+    // Create two different services
+    let service1 = serde_json::json!({
+        "t": "DIDCommMessaging",
+        "s": "https://example.com/alice",
+        "r": ["did:example:mediator#key1"],
+        "a": ["didcomm/v2"]
+    });
+    let service1_encoded =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(service1.to_string().as_bytes());
+
+    let service2 = serde_json::json!({
+        "t": "LinkedDomains",
+        "s": "https://alice.example.com"
+    });
+    let service2_encoded =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(service2.to_string().as_bytes());
+
+    let did = format!(
+        "did:peer:2.E{}.S{}.S{}",
+        key_encoded, service1_encoded, service2_encoded
+    );
+
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Should resolve");
+
+    let doc = result.did_document.expect("Should have DID document");
+
+    // Verify service endpoints
+    assert_eq!(doc.service.len(), 2, "Should have 2 service endpoints");
+
+    // Check service IDs
+    for (idx, service) in doc.service.iter().enumerate() {
+        assert!(
+            service
+                .id
+                .to_string()
+                .contains(&format!("#service-{}", idx + 1)),
+            "Service ID should have correct fragment"
+        );
+
+        assert!(
+            service.service_endpoint.is_some(),
+            "Service should have endpoint"
+        );
+    }
+
+    // Verify service types
+    let service_types: Vec<String> = doc
+        .service
+        .iter()
+        .map(|s| s.type_.first().unwrap().clone())
+        .collect();
+
+    assert!(
+        service_types.iter().any(|t| t.contains("DIDCommMessaging")),
+        "Should have DIDCommMessaging service"
+    );
+    assert!(
+        service_types.iter().any(|t| t.contains("LinkedDomains")),
+        "Should have LinkedDomains service"
+    );
+
+    println!("✓ Service endpoints correctly generated with proper structure");
+}
+
+#[tokio::test]
+async fn test_did_document_relationships_correct() {
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::ResolutionOptions;
+
+    // Create DID with different key purposes
+    let ed_key = [0xFFu8; 32];
+    let mut ed_multicodec = vec![0xed, 0x01];
+    ed_multicodec.extend_from_slice(&ed_key);
+    let ed_encoded = multibase::encode(multibase::Base::Base58Btc, &ed_multicodec);
+
+    let x_key = [0x11u8; 32];
+    let mut x_multicodec = vec![0xec, 0x01];
+    x_multicodec.extend_from_slice(&x_key);
+    let x_encoded = multibase::encode(multibase::Base::Base58Btc, &x_multicodec);
+
+    let auth_key = [0x22u8; 32];
+    let mut auth_multicodec = vec![0xed, 0x01];
+    auth_multicodec.extend_from_slice(&auth_key);
+    let auth_encoded = multibase::encode(multibase::Base::Base58Btc, &auth_multicodec);
+
+    // E=Verification, V=KeyAgreement, A=Authentication
+    let did = format!(
+        "did:peer:2.E{}.V{}.A{}",
+        ed_encoded, x_encoded, auth_encoded
+    );
+
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Should resolve");
+
+    let doc = result.did_document.expect("Should have DID document");
+
+    // Verify verification relationships
+    let rels = &doc.verification_relationships;
+
+    // E and A keys should be in authentication (2 keys)
+    assert_eq!(
+        rels.authentication.len(),
+        2,
+        "Should have 2 authentication relationships (E + A)"
+    );
+
+    // E and A keys should be in assertion method (2 keys)
+    assert_eq!(
+        rels.assertion_method.len(),
+        2,
+        "Should have 2 assertion method relationships (E + A)"
+    );
+
+    // Only V key should be in key agreement (1 key)
+    assert_eq!(
+        rels.key_agreement.len(),
+        1,
+        "Should have 1 key agreement relationship (V)"
+    );
+
+    // Verify the references point to actual verification methods
+    for auth_ref in &rels.authentication {
+        match auth_ref {
+            ssi::dids::document::verification_method::ValueOrReference::Reference(id) => {
+                let found = match id {
+                    ssi::dids::DIDURLReferenceBuf::Absolute(absolute_id) => doc
+                        .verification_method
+                        .iter()
+                        .any(|vm| vm.id == *absolute_id),
+                    ssi::dids::DIDURLReferenceBuf::Relative(_) => false,
+                };
+                assert!(
+                    found,
+                    "Authentication reference should point to existing VM"
+                );
+            }
+            _ => {}
+        }
+    }
+
+    println!("✓ Verification relationships correctly assigned based on key purpose");
+}
+
+#[tokio::test]
+async fn test_resolution_metadata_correct() {
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::ResolutionOptions;
+
+    let ed_key = [0x33u8; 32];
+    let mut multicodec_key = vec![0xed, 0x01];
+    multicodec_key.extend_from_slice(&ed_key);
+    let encoded = multibase::encode(multibase::Base::Base58Btc, &multicodec_key);
+    let did = format!("did:peer:0{}", encoded);
+
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Should resolve");
+
+    let metadata = result.did_resolution_metadata;
+
+    // Verify standard metadata fields
+    assert_eq!(
+        metadata.content_type,
+        Some("application/did+json".to_string()),
+        "Content type should be application/did+json"
+    );
+
+    assert!(metadata.error.is_none(), "Should not have error");
+
+    assert_eq!(
+        metadata.did_method,
+        Some("peer".to_string()),
+        "DID method should be 'peer'"
+    );
+
+    // Verify timing metadata
+    assert!(metadata.duration.is_some(), "Should have duration");
+    assert!(
+        metadata.resolved_at.is_some(),
+        "Should have resolved_at timestamp"
+    );
+
+    assert_eq!(
+        metadata.from_cache,
+        Some(false),
+        "Should indicate not from cache"
+    );
+
+    println!("✓ Resolution metadata contains correct standard fields");
+}
+
+#[tokio::test]
+async fn test_resolution_vdr_info_peer() {
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::{RegistryProof, ResolutionOptions};
+
+    let ed_key = [0x44u8; 32];
+    let mut multicodec_key = vec![0xed, 0x01];
+    multicodec_key.extend_from_slice(&ed_key);
+    let encoded = multibase::encode(multibase::Base::Base58Btc, &multicodec_key);
+    let did = format!("did:peer:0{}", encoded);
+
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Should resolve");
+
+    let metadata = result.did_resolution_metadata;
+
+    // Verify VDR info exists
+    let vdr = metadata
+        .verifiable_data_registry
+        .expect("Should have VDR info for peer DIDs");
+
+    // Verify VDR fields
+    assert_eq!(
+        vdr.registry_type, "peer-to-peer",
+        "Registry type should be peer-to-peer"
+    );
+    assert!(
+        vdr.verified,
+        "Peer DIDs are self-certifying, should be verified"
+    );
+    assert!(
+        vdr.registry_endpoint.is_none(),
+        "Peer DIDs have no registry endpoint"
+    );
+
+    assert_eq!(
+        vdr.registry_version,
+        Some("did:peer:2".to_string()),
+        "Should indicate did:peer version"
+    );
+
+    // Verify registry proof
+    let proof = vdr.registry_proof.expect("Should have registry proof");
+
+    match proof {
+        RegistryProof::CryptographicProof {
+            signature,
+            signature_algorithm,
+            public_key_id,
+            signed_data,
+        } => {
+            assert_eq!(signature, "self-certifying", "Should be self-certifying");
+            assert_eq!(
+                signature_algorithm, "embedded-peer",
+                "Algorithm should be embedded-peer"
+            );
+            assert_eq!(public_key_id, did, "Public key ID should be the DID itself");
+            assert_eq!(signed_data, did, "Signed data should be the DID itself");
+        }
+        _ => panic!("Expected CryptographicProof for peer DID"),
+    }
+
+    println!("✓ VDR info correctly populated for peer DIDs");
+}
+
+// ============================================================================
+// Generator Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_generate_numalgo2_multi_key() {
+    use node::modules::ssi::did::resolvers::peer::generator::PeerDidGenerator;
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::ResolutionOptions;
+
+    // Generate verification and encryption keys
+    let verification_key = vec![0xAAu8; 32];
+    let encryption_key = vec![0xBBu8; 32];
+
+    let did = PeerDidGenerator::generate_numalgo2(vec![verification_key], vec![encryption_key])
+        .expect("Should generate numalgo:2 DID");
+
+    println!("Generated numalgo:2 DID: {}", did);
+
+    // Verify format
+    assert!(
+        did.starts_with("did:peer:2"),
+        "Should start with did:peer:2"
+    );
+    assert!(
+        did.contains(".E"),
+        "Should contain verification key (E transform)"
+    );
+    assert!(
+        did.contains(".V"),
+        "Should contain encryption key (V transform)"
+    );
+
+    // Resolve to verify it's valid
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Generated DID should be valid");
+
+    let doc = result.did_document.expect("Should have DID document");
+    assert_eq!(doc.verification_method.len(), 2, "Should have 2 keys");
+
+    println!("✓ Successfully generated and validated numalgo:2 with multiple keys");
+}
+
+#[tokio::test]
+async fn test_generate_numalgo2_with_encryption_key() {
+    use node::modules::ssi::did::resolvers::peer::generator::PeerDidGenerator;
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::ResolutionOptions;
+
+    // Generate with only encryption key
+    let encryption_key1 = vec![0x11u8; 32];
+    let encryption_key2 = vec![0x22u8; 32];
+
+    let did = PeerDidGenerator::generate_numalgo2(
+        vec![], // No verification keys
+        vec![encryption_key1, encryption_key2],
+    )
+    .expect("Should generate with encryption keys only");
+
+    println!("Generated encryption-only DID: {}", did);
+
+    // Verify it has V transforms
+    assert!(did.contains(".V"), "Should contain encryption keys");
+
+    // Resolve and verify
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Should resolve");
+
+    let doc = result.did_document.expect("Should have DID document");
+
+    // All keys should be in keyAgreement relationship
+    assert_eq!(
+        doc.verification_relationships.key_agreement.len(),
+        2,
+        "Should have 2 key agreement relationships"
+    );
+
+    // Verify key types
+    for vm in &doc.verification_method {
+        assert_eq!(
+            vm.type_, "X25519KeyAgreementKey2020",
+            "Should be X25519 key agreement keys"
+        );
+    }
+
+    println!("✓ Successfully generated numalgo:2 with encryption keys");
+}
+
+#[test]
+fn test_from_passkey_deterministic() {
+    use node::modules::ssi::did::resolvers::peer::generator::PeerDidGenerator;
+
+    // Note: This test demonstrates the concept but can't actually test with real passkeys
+    // without WebAuthn infrastructure. In practice, the same passkey should always
+    // generate the same DID.
+
+    // Test that from_ed25519_bytes is deterministic
+    let public_key = [0x55u8; 32];
+
+    let did1 = PeerDidGenerator::from_ed25519_bytes(&public_key).expect("Should generate DID");
+    let did2 = PeerDidGenerator::from_ed25519_bytes(&public_key).expect("Should generate DID");
+
+    assert_eq!(did1, did2, "Same key should always produce same DID");
+
+    println!("✓ DID generation is deterministic: {}", did1);
+}
+
+#[test]
+fn test_from_passkey_different_keys_differ() {
+    use node::modules::ssi::did::resolvers::peer::generator::PeerDidGenerator;
+
+    // Different keys should produce different DIDs
+    let key1 = [0x11u8; 32];
+    let key2 = [0x22u8; 32];
+
+    let did1 = PeerDidGenerator::from_ed25519_bytes(&key1).expect("Should generate first DID");
+    let did2 = PeerDidGenerator::from_ed25519_bytes(&key2).expect("Should generate second DID");
+
+    assert_ne!(did1, did2, "Different keys should produce different DIDs");
+
+    println!("✓ Different keys produce different DIDs:");
+    println!("  Key 1: {}", did1);
+    println!("  Key 2: {}", did2);
+}
+
+// ============================================================================
+// Additional Generator Tests
+// ============================================================================
+
+#[test]
+fn test_generator_key_type_validation() {
+    use node::modules::ssi::did::resolvers::peer::generator::PeerDidGenerator;
+
+    // Test invalid key lengths
+    let short_key = vec![0xAAu8; 16]; // Too short for Ed25519
+    let result = PeerDidGenerator::from_ed25519_bytes(&short_key);
+    assert!(result.is_err(), "Should reject short keys");
+
+    let long_key = vec![0xBBu8; 64]; // Too long for Ed25519
+    let result = PeerDidGenerator::from_ed25519_bytes(&long_key);
+    assert!(result.is_err(), "Should reject long keys");
+
+    // Test valid length
+    let valid_key = vec![0xCCu8; 32];
+    let result = PeerDidGenerator::from_ed25519_bytes(&valid_key);
+    assert!(result.is_ok(), "Should accept 32-byte Ed25519 keys");
+
+    println!("✓ Generator correctly validates key lengths");
+}
+
+#[test]
+fn test_generator_x25519_validation() {
+    use node::modules::ssi::did::resolvers::peer::generator::PeerDidGenerator;
+
+    // Test X25519 key validation
+    let short_key = vec![0xAAu8; 16];
+    let result = PeerDidGenerator::from_x25519_bytes(&short_key);
+    assert!(result.is_err(), "Should reject short X25519 keys");
+
+    let valid_key = vec![0xBBu8; 32];
+    let result = PeerDidGenerator::from_x25519_bytes(&valid_key);
+    assert!(result.is_ok(), "Should accept 32-byte X25519 keys");
+
+    println!("✓ Generator correctly validates X25519 keys");
+}
+
+#[tokio::test]
+async fn test_round_trip_generation_and_resolution() {
+    use node::modules::ssi::did::resolvers::peer::generator::PeerDidGenerator;
+    use node::modules::ssi::did::resolvers::peer::resolve_peer_did;
+    use node::modules::ssi::did::types::ResolutionOptions;
+
+    // Generate a DID
+    let public_key = [0x77u8; 32];
+    let did = PeerDidGenerator::from_ed25519_bytes(&public_key).expect("Should generate DID");
+
+    println!("Generated DID: {}", did);
+
+    // Resolve it
+    let result = resolve_peer_did(&did, &ResolutionOptions::default())
+        .await
+        .expect("Should resolve generated DID");
+
+    let doc = result.did_document.expect("Should have DID document");
+
+    // Verify round-trip
+    assert_eq!(
+        doc.id.to_string(),
+        did,
+        "Resolved DID should match generated"
+    );
+    assert_eq!(
+        doc.verification_method.len(),
+        1,
+        "Should have one verification method"
+    );
+
+    // Verify the key material is present (though re-encoded with multicodec)
+    let vm = &doc.verification_method[0];
+    assert!(
+        vm.properties.contains_key("publicKeyMultibase"),
+        "Should contain public key"
+    );
+
+    println!("✓ Successfully completed generate → resolve round-trip");
+}
