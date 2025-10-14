@@ -21,7 +21,10 @@ pub async fn start(app_state: &AppState, config: &Config) -> Result<(), AppError
     Ok(())
 }
 
-async fn websocket_handler(ws: WebSocketUpgrade, State(app_state): State<AppState>) -> Response {
+pub async fn websocket_handler(
+    ws: WebSocketUpgrade,
+    State(app_state): State<AppState>,
+) -> Response {
     ws.on_upgrade(|socket| websocket_connection(socket, app_state))
 }
 
@@ -53,35 +56,6 @@ async fn handle_websocket_message(
     let action = payload["action"].as_str().unwrap_or("");
 
     match action {
-        "start_webauthn" => {
-            let node = app_state.node.read().await;
-            match node.start_webauthn_registration().await {
-                Ok(challenge) => {
-                    let response = json!({
-                        "action": "webauthn_challenge",
-                        "data": challenge,
-                        "status": "success"
-                    });
-                    let _ = sender
-                        .send(axum::extract::ws::Message::Text(
-                            response.to_string().into(),
-                        ))
-                        .await;
-                }
-                Err(e) => {
-                    let response = json!({
-                        "action": "error",
-                        "message": e.to_string(),
-                        "status": "error"
-                    });
-                    let _ = sender
-                        .send(axum::extract::ws::Message::Text(
-                            response.to_string().into(),
-                        ))
-                        .await;
-                }
-            }
-        }
         "create_space" => {
             let node = app_state.node.read().await;
             let dir = payload["dir"].as_str().unwrap_or("/tmp/space");

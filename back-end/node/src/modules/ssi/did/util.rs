@@ -3,6 +3,41 @@ use ssi::dids::{DIDKey, Document as DIDDocument};
 use ssi::jwk::{JWK, Params as JWKParams};
 use webauthn_rs::prelude::{COSEKey, Passkey};
 
+use crate::modules::ssi::did::resolvers::peer::generator::PeerDidGenerator;
+
+/// Generate both did:key and did:peer from a passkey
+///
+/// Useful when you want to create multiple DID representations
+/// of the same passkey for different purposes.
+pub fn generate_dids_from_passkey(
+    passkey: &Passkey,
+) -> Result<(String, String), Box<dyn std::error::Error>> {
+    let did_key = generate_did_key_from_passkey(passkey)?;
+    let did_peer = generate_did_peer_from_passkey(passkey)?;
+
+    Ok((did_key, did_peer))
+}
+
+/// Generate a did:peer from a WebAuthn passkey
+///
+/// Creates a did:peer:0 (inception key) from the passkey's public key.
+/// This is a self-certifying DID that can be shared directly with peers
+/// without requiring any blockchain or centralized registry.
+///
+/// # Example
+/// ```ignore
+/// let did_peer = generate_did_peer_from_passkey(&passkey)?;
+/// // Returns: "did:peer:0z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+/// ```
+pub fn generate_did_peer_from_passkey(
+    passkey: &Passkey,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let did = PeerDidGenerator::from_passkey(passkey)?;
+
+    info!("Generated did:peer: {}", did);
+    Ok(did)
+}
+
 /// Generate a did:key from a WebAuthn passkey
 pub fn generate_did_key_from_passkey(
     passkey: &Passkey,

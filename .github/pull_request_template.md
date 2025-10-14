@@ -1,6 +1,3 @@
-# Title
-<!-- Short, imperative: "Add WebAuthn VC minting" -->
-
 ## Description
 Give a concise but detailed description of the pull request. Enough to provide context on the changes made. 
 

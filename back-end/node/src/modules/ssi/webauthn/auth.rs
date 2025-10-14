@@ -1,5 +1,5 @@
 use crate::api::node::Node;
-use crate::modules::ssi::did::{
+use crate::modules::ssi::did::util::{
     cose_to_jwk, create_did_document, did_document_to_json, generate_did_key_from_passkey,
 };
 use base64::prelude::*;

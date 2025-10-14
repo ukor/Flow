@@ -1,6 +1,7 @@
 use crate::{api::rest::helpers::*, bootstrap::init::setup_test_server};
 use axum::http::StatusCode;
 use entity::{pass_key, user};
+use log::info;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use webauthn_authenticator_rs::{AuthenticatorBackend, softpasskey::SoftPasskey};
@@ -44,7 +45,7 @@ async fn test_start_registration_returns_challenge() {
         "challenge should have 'publicKey' field"
     );
 
-    println!("Registration challenge: {:?}", body);
+    info!("Registration challenge: {:?}", body);
 }
 
 #[tokio::test]
@@ -111,7 +112,7 @@ async fn test_start_registration_response_format() {
         "Should have 'attestation' field"
     );
 
-    println!("Registration challenge format verified");
+    info!("Registration challenge format verified");
 }
 
 #[tokio::test]
@@ -144,7 +145,7 @@ async fn test_start_registration_creates_unique_challenges() {
     );
     assert_ne!(challenge1, challenge2, "Challenge values should be unique");
 
-    println!(
+    info!(
         "Generated unique challenges: {} and {}",
         challenge_id1, challenge_id2
     );
@@ -224,7 +225,7 @@ async fn test_finish_registration_valid_payload() {
         "New passkey should have auth_count 0"
     );
 
-    println!(
+    info!(
         "Registration validated - User ID: {}, Passkey ID: {}",
         created_user.id, passkeys[0].id
     );
@@ -268,7 +269,7 @@ async fn test_finish_registration_missing_challenge_id() {
         body
     );
 
-    println!("Missing challenge_id error: {:?}", body);
+    info!("Missing challenge_id error: {:?}", body);
 }
 
 #[tokio::test]
@@ -301,7 +302,7 @@ async fn test_finish_registration_missing_credential() {
         body
     );
 
-    println!("Missing credential error: {:?}", body);
+    info!("Missing credential error: {:?}", body);
 }
 
 #[tokio::test]
@@ -340,7 +341,7 @@ async fn test_finish_registration_invalid_credential_format() {
         body
     );
 
-    println!("Invalid credential format error: {:?}", body);
+    info!("Invalid credential format error: {:?}", body);
 }
 
 #[tokio::test]
@@ -376,7 +377,7 @@ async fn test_finish_registration_invalid_challenge_id() {
         status
     );
 
-    println!("Invalid challenge_id handled with status: {}", status);
+    info!("Invalid challenge_id handled with status: {}", status);
 }
 
 #[tokio::test]
@@ -489,8 +490,8 @@ async fn test_finish_registration_returns_did() {
     let did_doc: serde_json::Value = serde_json::from_str(&user_record.public_key_jwk)
         .expect("public_key_jwk should be valid JSON");
 
-    println!("Registration returned DID: {}", did);
-    println!("DID Document: {:?}", did_doc);
+    info!("Registration returned DID: {}", did);
+    info!("DID Document: {:?}", did_doc);
 }
 
 #[tokio::test]
@@ -543,7 +544,7 @@ async fn test_finish_registration_creates_user_in_database() {
         "Should be able to start authentication after registration, indicating user/passkey were stored"
     );
 
-    println!("User created with DID: {}", did);
+    info!("User created with DID: {}", did);
 }
 
 #[tokio::test]
@@ -592,7 +593,7 @@ async fn test_finish_registration_deterministic_did_generation() {
 
     // Note: Same credential should always produce same DID
     // (This is a property of did:key method)
-    println!("Generated deterministic DID: {}", did);
+    info!("Generated deterministic DID: {}", did);
 }
 
 #[tokio::test]
@@ -637,7 +638,7 @@ async fn test_finish_registration_challenge_expires() {
         "Should succeed with fresh challenge"
     );
 
-    println!(
+    info!(
         "Challenge expiry test completed (implement actual timeout test with tokio::time::sleep if needed)"
     );
 }

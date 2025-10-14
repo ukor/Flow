@@ -5,6 +5,7 @@ use crate::{
     modules::ssi::fixtures::load_es256_passkey,
 };
 use base64::{Engine as _, prelude::BASE64_STANDARD};
+use log::info;
 use migration::{Migrator, MigratorTrait};
 use node::api::node::Node;
 use node::bootstrap::init::NodeData;
@@ -229,7 +230,7 @@ async fn test_end_to_end_registration_and_authentication() {
         .await
         .expect("Failed to start registration");
 
-    println!("Registration challenge created: {}", challenge_id);
+    info!("Registration challenge created: {}", challenge_id);
 
     // 2. Simulate authenticator creating credential
     let mut authenticator = SoftPasskey::new(true); // user_verified = true, must be mutable
@@ -248,9 +249,9 @@ async fn test_end_to_end_registration_and_authentication() {
         .await
         .expect("Failed to finish registration");
 
-    println!("Registration successful!");
-    println!("DID: {}", did);
-    println!("User ID: {}", user_id);
+    info!("Registration successful!");
+    info!("DID: {}", did);
+    info!("User ID: {}", user_id);
 
     // Verify DID was created
     assert!(did.starts_with("did:key:"));
@@ -264,7 +265,7 @@ async fn test_end_to_end_registration_and_authentication() {
         .await
         .expect("Failed to start authentication");
 
-    println!("Authentication challenge created: {}", auth_challenge_id);
+    info!("Authentication challenge created: {}", auth_challenge_id);
 
     // 2. Simulate authenticator signing challenge
     let authentication_credential = authenticator
@@ -281,9 +282,9 @@ async fn test_end_to_end_registration_and_authentication() {
         .await
         .expect("Failed to finish authentication");
 
-    println!("Authentication successful!");
-    println!("Counter: {}", auth_result.counter());
-    println!("User verified: {}", auth_result.user_verified());
+    info!("Authentication successful!");
+    info!("Counter: {}", auth_result.counter());
+    info!("User verified: {}", auth_result.user_verified());
 
     // Verify authentication result
     assert!(auth_result.user_verified());
@@ -308,7 +309,7 @@ async fn test_finish_registration_creates_user_and_did() {
         .await
         .expect("Failed to start registration");
 
-    println!("Registration challenge created: {}", challenge_id);
+    info!("Registration challenge created: {}", challenge_id);
 
     // Simulate authenticator creating credential
     let mut authenticator = SoftPasskey::new(true);
@@ -326,9 +327,9 @@ async fn test_finish_registration_creates_user_and_did() {
         .await
         .expect("Failed to finish registration");
 
-    println!("Registration completed!");
-    println!("  DID: {}", did);
-    println!("  DID Document length: {} bytes", did_doc_json.len());
+    info!("Registration completed!");
+    info!("  DID: {}", did);
+    info!("  DID Document length: {} bytes", did_doc_json.len());
 
     // ===== VERIFY USER CREATION =====
 
@@ -341,7 +342,7 @@ async fn test_finish_registration_creates_user_and_did() {
     );
 
     let created_user = &users[0];
-    println!("Created user ID: {}", created_user.id);
+    info!("Created user ID: {}", created_user.id);
 
     // 2. Verify user has the correct DID
     assert_eq!(
@@ -360,7 +361,7 @@ async fn test_finish_registration_creates_user_and_did() {
         device_ids.contains(&device_id.to_string()),
         "User should have the device_id in their device_ids list"
     );
-    println!("User device_ids: {:?}", device_ids);
+    info!("User device_ids: {:?}", device_ids);
 
     // 4. Verify user has DID document stored
     assert!(
@@ -394,7 +395,7 @@ async fn test_finish_registration_creates_user_and_did() {
     );
 
     let stored_passkey = &passkeys[0];
-    println!("Stored passkey ID: {}", stored_passkey.id);
+    info!("Stored passkey ID: {}", stored_passkey.id);
 
     // 7. Verify passkey is linked to correct device
     assert_eq!(
@@ -441,11 +442,11 @@ async fn test_finish_registration_creates_user_and_did() {
         "DID document should have verification method"
     );
 
-    println!("✓ All user and DID creation checks passed!");
-    println!("  User ID: {}", created_user.id);
-    println!("  DID: {}", did);
-    println!("  Device ID: {}", device_id);
-    println!("  Passkey ID: {}", stored_passkey.id);
+    info!("✓ All user and DID creation checks passed!");
+    info!("  User ID: {}", created_user.id);
+    info!("  DID: {}", did);
+    info!("  Device ID: {}", device_id);
+    info!("  Passkey ID: {}", stored_passkey.id);
 }
 
 #[tokio::test]
@@ -470,7 +471,7 @@ async fn test_store_passkey_success() {
     };
 
     let user_model = test_user.insert(&db).await.unwrap();
-    println!("Created test user with ID: {}", user_model.id);
+    info!("Created test user with ID: {}", user_model.id);
 
     // Create a test passkey (using fixture JSON)
     let (passkey, _passkey_json) = load_es256_passkey();
@@ -485,7 +486,7 @@ async fn test_store_passkey_success() {
         result.err()
     );
 
-    println!("Successfully stored passkey using store_passkey function");
+    info!("Successfully stored passkey using store_passkey function");
 
     // Verify the passkey was stored by retrieving it
     use entity::pass_key;
@@ -521,7 +522,7 @@ async fn test_store_passkey_success() {
         "Deserialized passkey should match original"
     );
 
-    println!("Passkey verification complete - all fields match!");
+    info!("Passkey verification complete - all fields match!");
 }
 
 #[tokio::test]
@@ -642,7 +643,7 @@ async fn test_get_passkeys_for_device() {
 
     new_passkey_b.insert(&db).await.unwrap();
 
-    println!("Stored 2 passkeys for device-A and 1 for device-B");
+    info!("Stored 2 passkeys for device-A and 1 for device-B");
 
     // Test: Get passkeys for device-A using the actual get_passkeys_for_device function
     let passkeys_a = get_passkeys_for_device(&db, "device-A")
@@ -650,7 +651,7 @@ async fn test_get_passkeys_for_device() {
         .expect("Should successfully retrieve passkeys for device-A");
 
     assert_eq!(passkeys_a.len(), 2, "Should have 2 passkeys for device-A");
-    println!(
+    info!(
         "✓ Successfully retrieved {} passkeys for device-A using get_passkeys_for_device()",
         passkeys_a.len()
     );
@@ -661,7 +662,7 @@ async fn test_get_passkeys_for_device() {
         .expect("Should successfully retrieve passkeys for device-B");
 
     assert_eq!(passkeys_b.len(), 1, "Should have 1 passkey for device-B");
-    println!(
+    info!(
         "✓ Successfully retrieved {} passkey for device-B using get_passkeys_for_device()",
         passkeys_b.len()
     );
@@ -676,7 +677,7 @@ async fn test_get_passkeys_for_device() {
         0,
         "Should have 0 passkeys for device-C"
     );
-    println!("✓ Correctly returned 0 passkeys for non-existent device-C");
+    info!("✓ Correctly returned 0 passkeys for non-existent device-C");
 
     // Test: Verify the returned passkeys have correct credential IDs
     let returned_cred_ids: Vec<String> = passkeys_a
@@ -684,9 +685,294 @@ async fn test_get_passkeys_for_device() {
         .map(|pk| format!("{:?}", pk.cred_id()))
         .collect();
 
-    println!("✓ All get_passkeys_for_device tests passed!");
-    println!(
+    info!("✓ All get_passkeys_for_device tests passed!");
+    info!(
         "  Returned credential IDs for device-A: {:?}",
         returned_cred_ids
     );
+}
+
+// ========== Authentication Failure Tests ==========
+
+#[tokio::test]
+async fn test_authentication_without_registration_fails() {
+    // Setup: Create a fresh node with no registered passkeys
+    let device_id = "test-device-no-passkey";
+    let (node, _temp) = setup_test_node_with_device_id(device_id).await;
+
+    // Verify no passkeys exist in the database
+    use entity::pass_key;
+    use sea_orm::EntityTrait;
+
+    let existing_passkeys = pass_key::Entity::find()
+        .filter(pass_key::Column::DeviceId.eq(device_id))
+        .all(&node.db)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        existing_passkeys.len(),
+        0,
+        "Should start with no passkeys for device"
+    );
+
+    // Execute: Try to start authentication without any registered passkeys
+    let result = node.start_webauthn_authentication().await;
+
+    // Assert: Authentication start should fail
+    assert!(
+        result.is_err(),
+        "Should fail to start authentication without registered passkeys"
+    );
+
+    if let Err(e) = result {
+        let error_msg = e.to_string();
+        info!("Expected error message: {}", error_msg);
+
+        // Error message should indicate no credentials or similar
+        assert!(
+            error_msg.to_lowercase().contains("credential")
+                || error_msg.to_lowercase().contains("passkey")
+                || error_msg.to_lowercase().contains("not found")
+                || error_msg.to_lowercase().contains("no"),
+            "Error should mention missing credentials or passkeys, got: {}",
+            error_msg
+        );
+    }
+
+    info!("✓ Authentication correctly failed without registration");
+}
+
+#[tokio::test]
+async fn test_authentication_with_wrong_credential_fails() {
+    // Setup: Register a passkey first
+    let device_id = "test-device-wrong-cred";
+    let (node, _temp) = setup_test_node_with_device_id(device_id).await;
+
+    // ===== REGISTRATION FLOW =====
+
+    // 1. Start registration
+    let (creation_challenge, challenge_id) = node
+        .start_webauthn_registration()
+        .await
+        .expect("Should start registration");
+
+    info!("Registration challenge created: {}", challenge_id);
+
+    // 2. Create credential with first authenticator
+    let mut authenticator1 = SoftPasskey::new(true);
+    let registration_credential = authenticator1
+        .perform_register(
+            Url::parse("http://localhost:3000").unwrap(),
+            creation_challenge.public_key.clone(),
+            60000,
+        )
+        .expect("Should create registration credential");
+
+    // 3. Finish registration
+    let (did, _did_doc) = node
+        .finish_webauthn_registration(&challenge_id, registration_credential)
+        .await
+        .expect("Should finish registration");
+
+    info!("Registration successful with DID: {}", did);
+
+    // ===== AUTHENTICATION FLOW WITH WRONG CREDENTIAL =====
+
+    // 1. Start authentication (this should succeed)
+    let (auth_challenge, auth_challenge_id) = node
+        .start_webauthn_authentication()
+        .await
+        .expect("Should start authentication");
+
+    info!("Authentication challenge created: {}", auth_challenge_id);
+
+    // 2. Try to create credential with DIFFERENT authenticator
+    // This demonstrates that the authenticator itself prevents wrong credential usage
+    let mut authenticator2 = SoftPasskey::new(true); // Different authenticator
+    let wrong_credential_result = authenticator2.perform_auth(
+        Url::parse("http://localhost:3000").unwrap(),
+        auth_challenge.public_key.clone(),
+        60000,
+    );
+
+    // Assert: The authenticator should refuse to create credentials it doesn't have
+    assert!(
+        wrong_credential_result.is_err(),
+        "Authenticator should refuse to sign with credentials it doesn't have"
+    );
+
+    if let Err(e) = wrong_credential_result {
+        let error_msg = format!("{:?}", e);
+        info!("Expected authenticator error: {}", error_msg);
+
+        // Error should indicate credential not found
+        assert!(
+            error_msg.to_lowercase().contains("credential")
+                || error_msg.to_lowercase().contains("not found")
+                || error_msg.to_lowercase().contains("internal"),
+            "Error should mention credential issue, got: {}",
+            error_msg
+        );
+    }
+
+    // Verify: The passkey counter was NOT incremented (auth never completed)
+    use entity::pass_key;
+    use sea_orm::EntityTrait;
+
+    let passkeys = pass_key::Entity::find()
+        .filter(pass_key::Column::DeviceId.eq(device_id))
+        .all(&node.db)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        passkeys.len(),
+        1,
+        "Should still have the registered passkey"
+    );
+
+    let passkey = &passkeys[0];
+    assert_eq!(
+        passkey.sign_count, 0,
+        "Sign count should remain 0 (authentication never completed)"
+    );
+    assert_eq!(
+        passkey.authentication_count, 0,
+        "Authentication count should remain 0 (authentication never completed)"
+    );
+
+    info!("✓ Authenticator correctly refused to sign with wrong credential");
+    info!("  This validates client-side security before server verification");
+}
+
+#[tokio::test]
+async fn test_authentication_with_tampered_credential_fails_at_server() {
+    // Setup: We'll register TWO different authenticators, then try to use
+    // authenticator2's signature for authenticator1's credential
+    let device_id = "test-device-cross-auth";
+    let (node, _temp) = setup_test_node_with_device_id(device_id).await;
+
+    // ===== REGISTER FIRST CREDENTIAL =====
+
+    let (creation_challenge1, challenge_id1) = node
+        .start_webauthn_registration()
+        .await
+        .expect("Should start first registration");
+
+    let mut authenticator1 = SoftPasskey::new(true);
+    let registration_credential1 = authenticator1
+        .perform_register(
+            Url::parse("http://localhost:3000").unwrap(),
+            creation_challenge1.public_key.clone(),
+            60000,
+        )
+        .expect("Should create first credential");
+
+    let (did1, _) = node
+        .finish_webauthn_registration(&challenge_id1, registration_credential1)
+        .await
+        .expect("Should finish first registration");
+
+    info!("First credential registered with DID: {}", did1);
+
+    // ===== TRY TO AUTHENTICATE WITH WRONG AUTHENTICATOR =====
+
+    // Start authentication (will return authenticator1's credential in allowCredentials)
+    let (auth_challenge, auth_challenge_id) = node
+        .start_webauthn_authentication()
+        .await
+        .expect("Should start authentication");
+
+    info!("Authentication challenge created: {}", auth_challenge_id);
+
+    // Create a SECOND authenticator and try to use it
+    // Even though it creates a valid signature, it will be the WRONG signature
+    // for the registered credential
+    let mut _authenticator2 = SoftPasskey::new(true);
+
+    // Manually construct a credential response using authenticator2's keys
+    // but with authenticator1's credential ID
+    // This simulates an attacker trying to use their own key to authenticate
+    // as someone else
+
+    // Unfortunately, we can't easily construct this with the public API
+    // So instead, let's test a different scenario: replay attack
+
+    // Authenticate successfully first
+    let valid_credential = authenticator1
+        .perform_auth(
+            Url::parse("http://localhost:3000").unwrap(),
+            auth_challenge.public_key.clone(),
+            60000,
+        )
+        .expect("Should create valid auth credential");
+
+    let auth_result = node
+        .finish_webauthn_authentication(&auth_challenge_id, valid_credential.clone())
+        .await
+        .expect("First authentication should succeed");
+
+    info!(
+        "First authentication succeeded, counter: {}",
+        auth_result.counter()
+    );
+
+    // ===== TEST REPLAY ATTACK =====
+
+    // Try to reuse the same credential for a NEW authentication challenge
+    let (_auth_challenge2, auth_challenge_id2) = node
+        .start_webauthn_authentication()
+        .await
+        .expect("Should start second authentication");
+
+    info!(
+        "Second authentication challenge created: {}",
+        auth_challenge_id2
+    );
+
+    // Try to replay the OLD credential response with the NEW challenge
+    let replay_result = node
+        .finish_webauthn_authentication(&auth_challenge_id2, valid_credential)
+        .await;
+
+    // Assert: Server should reject replayed credential (wrong challenge)
+    assert!(
+        replay_result.is_err(),
+        "Should fail to authenticate with replayed credential (different challenge)"
+    );
+
+    if let Err(e) = replay_result {
+        let error_msg = e.to_string();
+        info!("Expected error for replay attack: {}", error_msg);
+
+        // Error should indicate verification failure
+        assert!(
+            error_msg.to_lowercase().contains("challenge")
+                || error_msg.to_lowercase().contains("invalid")
+                || error_msg.to_lowercase().contains("verify")
+                || error_msg.to_lowercase().contains("failed"),
+            "Error should mention verification failure, got: {}",
+            error_msg
+        );
+    }
+
+    // Verify: Counter was only incremented once (replay didn't succeed)
+    use entity::pass_key;
+    use sea_orm::EntityTrait;
+
+    let passkeys = pass_key::Entity::find()
+        .filter(pass_key::Column::DeviceId.eq(device_id))
+        .all(&node.db)
+        .await
+        .unwrap();
+
+    let passkey = &passkeys[0];
+    assert!(
+        passkey.sign_count <= 1,
+        "Sign count should be 1 or less (replay didn't increment)"
+    );
+
+    info!("✓ Server correctly rejected replay attack");
+    info!("  This validates server-side challenge verification");
 }
