@@ -186,7 +186,7 @@ mod did_web_resolution_tests {
             }
             Err(ResolutionError::NetworkError(_)) => {
                 // Network errors are acceptable in tests
-                println!("Network error - skipping test");
+                info!("Network error - skipping test");
             }
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
@@ -596,7 +596,7 @@ mod resolver_config_tests {
         let resolver = DidResolver::new();
         let methods = resolver.supported_methods();
 
-        assert_eq!(methods.len(), 7);
+        assert_eq!(methods.len(), 8);
         assert!(methods.contains(&"key"));
     }
 }

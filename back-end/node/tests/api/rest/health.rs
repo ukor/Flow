@@ -1,9 +1,9 @@
 use crate::bootstrap::init::setup_test_server;
 
 use super::helpers::*;
-
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
+use log::info;
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -39,7 +39,7 @@ async fn test_health_endpoint_returns_200() {
         "Response should have 'timestamp' field"
     );
 
-    println!("Health check response: {:?}", body);
+    info!("Health check response: {:?}", body);
 }
 
 #[tokio::test]
@@ -71,7 +71,7 @@ async fn test_health_endpoint_response_format() {
         timestamp
     );
 
-    println!("Timestamp format verified: {}", timestamp);
+    info!("Timestamp format verified: {}", timestamp);
 }
 
 #[tokio::test]
@@ -106,7 +106,7 @@ async fn test_cors_headers_present() {
         "Should have access-control-allow-origin header"
     );
 
-    println!("CORS headers verified: {:?}", headers);
+    info!("CORS headers verified: {:?}", headers);
 }
 
 #[tokio::test]
@@ -186,8 +186,8 @@ async fn test_health_endpoint_multiple_calls() {
     assert!(body1["timestamp"].is_string());
     assert!(body2["timestamp"].is_string());
 
-    println!("Call 1 timestamp: {}", body1["timestamp"]);
-    println!("Call 2 timestamp: {}", body2["timestamp"]);
+    info!("Call 1 timestamp: {}", body1["timestamp"]);
+    info!("Call 2 timestamp: {}", body2["timestamp"]);
 }
 
 #[tokio::test]
@@ -219,5 +219,5 @@ async fn test_health_endpoint_content_type() {
         content_type_value
     );
 
-    println!("Content-Type: {}", content_type_value);
+    info!("Content-Type: {}", content_type_value);
 }

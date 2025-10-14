@@ -1,6 +1,7 @@
+use log::info;
 use node::modules::ssi::did::util::{
     cose_to_jwk, create_did_document, did_document_to_json, extract_ec_coordinates,
-    extract_eddsa_public_key, generate_did_key_from_passkey,
+    extract_eddsa_public_key, generate_did_key_from_passkey, generate_did_peer_from_passkey,
 };
 use ssi::jwk::Params as JWKParams;
 use webauthn_rs::prelude::{
@@ -68,7 +69,7 @@ fn test_generate_did_key_from_es256_passkey() {
     assert!(did.starts_with("did:key:"), "DID should use did:key method");
     assert!(did.len() > 20, "DID should have substantial length");
 
-    println!("Generated ES256 DID: {}", did);
+    info!("Generated ES256 DID: {}", did);
 }
 
 #[test]
@@ -86,7 +87,7 @@ fn test_generate_did_key_from_eddsa_passkey() {
     assert!(did.starts_with("did:key:"), "DID should use did:key method");
     assert!(did.len() > 20, "DID should have substantial length");
 
-    println!("Generated EdDSA DID: {}", did);
+    info!("Generated EdDSA DID: {}", did);
 }
 
 // ========== COSE to JWK Conversion Tests ==========
@@ -133,7 +134,7 @@ fn test_cose_to_jwk_es256() {
         "Should have ES256 algorithm"
     );
 
-    println!("ES256 JWK: {:?}", jwk);
+    info!("ES256 JWK: {:?}", jwk);
 }
 
 #[test]
@@ -176,7 +177,7 @@ fn test_cose_to_jwk_eddsa() {
         "Should have EdDSA algorithm"
     );
 
-    println!("EdDSA JWK: {:?}", jwk);
+    info!("EdDSA JWK: {:?}", jwk);
 }
 
 // ========== Coordinate Extraction Tests ==========
@@ -195,7 +196,7 @@ fn test_extract_ec_coordinates_valid() {
     assert!(!x.is_empty(), "X coordinate should not be empty");
     assert!(!y.is_empty(), "Y coordinate should not be empty");
 
-    println!(
+    info!(
         "Extracted coordinates: x={} bytes, y={} bytes",
         x.len(),
         y.len()
@@ -234,7 +235,7 @@ fn test_extract_eddsa_public_key_valid() {
     );
     assert!(!public_key.is_empty(), "Public key should not be empty");
 
-    println!("Extracted EdDSA public key: {} bytes", public_key.len());
+    info!("Extracted EdDSA public key: {} bytes", public_key.len());
 }
 
 #[test]
@@ -271,7 +272,7 @@ fn test_create_did_document_structure() {
         "Should have verification methods"
     );
 
-    println!("Created DID document for: {}", did);
+    info!("Created DID document for: {}", did);
 }
 
 #[test]
@@ -306,7 +307,7 @@ fn test_did_document_has_verification_methods() {
         "Should have assertion method relationship"
     );
 
-    println!("Verification methods: {}", doc.verification_method.len());
+    info!("Verification methods: {}", doc.verification_method.len());
 }
 
 #[test]
@@ -333,8 +334,8 @@ fn test_did_document_serialization() {
         "Should have 'verificationMethod' field"
     );
 
-    println!("DID Document JSON length: {} bytes", json.len());
-    println!("DID Document:\n{}", json);
+    info!("DID Document JSON length: {} bytes", json.len());
+    info!("DID Document:\n{}", json);
 }
 
 #[test]
@@ -350,7 +351,7 @@ fn test_did_key_deterministic_generation() {
     assert_eq!(did1, did2, "DID generation should be deterministic");
     assert_eq!(did2, did3, "DID generation should be deterministic");
 
-    println!("Deterministic DID: {}", did1);
+    info!("Deterministic DID: {}", did1);
 
     // Verify JWK conversion is also deterministic
     let jwk1 = cose_to_jwk(passkey.get_public_key()).unwrap();
@@ -378,6 +379,32 @@ fn test_different_passkeys_generate_different_dids() {
         "Different passkeys should generate different DIDs"
     );
 
-    println!("ES256 DID: {}", did1);
-    println!("EdDSA DID: {}", did2);
+    info!("ES256 DID: {}", did1);
+    info!("EdDSA DID: {}", did2);
+}
+
+#[test]
+fn test_generate_did_peer_from_passkey() {
+    use crate::modules::ssi::fixtures::load_es256_passkey;
+
+    let passkey = load_es256_passkey().0;
+
+    let result = generate_did_peer_from_passkey(&passkey);
+
+    assert!(result.is_ok());
+    let did = result.unwrap();
+    assert!(did.starts_with("did:peer:0"));
+    info!("Generated did:peer: {}", did);
+}
+
+#[test]
+fn test_did_peer_deterministic() {
+    use crate::modules::ssi::fixtures::load_es256_passkey;
+
+    let passkey = load_es256_passkey().0;
+
+    let did1 = generate_did_peer_from_passkey(&passkey).unwrap();
+    let did2 = generate_did_peer_from_passkey(&passkey).unwrap();
+
+    assert_eq!(did1, did2, "Same passkey should generate same did:peer");
 }

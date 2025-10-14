@@ -1,6 +1,7 @@
 use crate::{api::rest::helpers::*, bootstrap::init::setup_test_server};
 use axum::http::StatusCode;
 use entity::pass_key;
+use log::info;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use webauthn_authenticator_rs::{AuthenticatorBackend, softpasskey::SoftPasskey};
@@ -75,7 +76,7 @@ async fn test_start_authentication_returns_challenge() {
         "Should have allowCredentials array"
     );
 
-    println!("Authentication challenge: {:?}", body);
+    info!("Authentication challenge: {:?}", body);
 }
 
 #[tokio::test]
@@ -110,7 +111,7 @@ async fn test_start_authentication_no_passkeys() {
         );
     }
 
-    println!(
+    info!(
         "Start authentication with no passkeys: status={}, body={:?}",
         status, body
     );
@@ -191,7 +192,7 @@ async fn test_start_authentication_response_format() {
         "Challenge should have 'userVerification' field"
     );
 
-    println!("Authentication challenge structure verified");
+    info!("Authentication challenge structure verified");
 }
 
 #[tokio::test]
@@ -269,7 +270,7 @@ async fn test_finish_authentication_valid_payload() {
     assert!(body["message"].is_string(), "Should have message");
     assert!(body["counter"].is_number(), "Should have counter");
 
-    println!("Authentication successful: {:?}", body);
+    info!("Authentication successful: {:?}", body);
 }
 
 #[tokio::test]
@@ -301,7 +302,7 @@ async fn test_finish_authentication_missing_challenge_id() {
         "Error message should mention missing challenge_id"
     );
 
-    println!("Missing challenge_id error: {:?}", body);
+    info!("Missing challenge_id error: {:?}", body);
 }
 
 #[tokio::test]
@@ -333,7 +334,7 @@ async fn test_finish_authentication_missing_credential() {
         "Error message should mention missing credential"
     );
 
-    println!("Missing credential error: {:?}", body);
+    info!("Missing credential error: {:?}", body);
 }
 
 #[tokio::test]
@@ -370,7 +371,7 @@ async fn test_finish_authentication_invalid_credential_format() {
         "Error message should mention invalid credential format"
     );
 
-    println!("Invalid credential format error: {:?}", body);
+    info!("Invalid credential format error: {:?}", body);
 }
 
 #[tokio::test]
@@ -407,7 +408,7 @@ async fn test_finish_authentication_invalid_challenge_id() {
         status
     );
 
-    println!("Invalid challenge_id handled with status: {}", status);
+    info!("Invalid challenge_id handled with status: {}", status);
 }
 
 #[tokio::test]
@@ -491,7 +492,7 @@ async fn test_finish_authentication_returns_counter() {
         "Should have needs_update"
     );
 
-    println!(
+    info!(
         "Authentication result: counter={}, backup_state={}, backup_eligible={}, needs_update={}",
         body["counter"], body["backup_state"], body["backup_eligible"], body["needs_update"]
     );
@@ -517,7 +518,7 @@ async fn test_finish_authentication_returns_counter() {
     //     "Authentication count should be 1"
     // );
 
-    println!(
+    info!(
         "Counter validated - DB sign_count: {}, auth_count: {}",
         passkey.sign_count, passkey.authentication_count
     );

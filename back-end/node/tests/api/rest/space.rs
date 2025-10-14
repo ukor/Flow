@@ -1,6 +1,7 @@
 use crate::{api::rest::helpers::*, bootstrap::init::setup_test_server};
 use axum::http::StatusCode;
 use entity::space;
+use log::info;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::json;
 use tempfile::TempDir;
@@ -23,8 +24,8 @@ async fn test_create_space_valid_directory() {
     assert_eq!(status, StatusCode::OK, "Should return 200 OK");
     assert_eq!(body["status"], "success", "Should return success status");
 
-    println!("Created space at: {}", dir_path);
-    println!("Response: {:?}", body);
+    info!("Created space at: {}", dir_path);
+    info!("Response: {:?}", body);
 
     // Validate database entry
     let db = &server.node.db;
@@ -51,8 +52,8 @@ async fn test_create_space_valid_directory() {
         "Should have valid timestamp"
     );
 
-    println!("Created space at: {}", dir_path);
-    println!(
+    info!("Created space at: {}", dir_path);
+    info!(
         "Database entry validated: ID={}, Key={}",
         stored_space.id, stored_space.key
     );
@@ -86,7 +87,7 @@ async fn test_create_space_creates_directory_if_not_exists() {
     assert_eq!(spaces.len(), 1, "Should have exactly 1 space in DB");
     assert_eq!(spaces[0].key.len(), 64, "Should have valid key");
 
-    println!("Directory created and DB entry validated: {}", dir_path);
+    info!("Directory created and DB entry validated: {}", dir_path);
 }
 
 #[tokio::test]
@@ -115,7 +116,7 @@ async fn test_create_space_with_nested_directory() {
     // Verify nested directory was created
     assert!(nested_dir.exists(), "Nested directory should be created");
 
-    println!("Nested directory created: {}", dir_path);
+    info!("Nested directory created: {}", dir_path);
 }
 
 #[tokio::test]
@@ -148,7 +149,7 @@ async fn test_create_space_invalid_directory() {
         body
     );
 
-    println!("Invalid directory error: {:?}", body);
+    info!("Invalid directory error: {:?}", body);
 }
 
 #[tokio::test]
@@ -194,7 +195,7 @@ async fn test_create_space_duplicate() {
         "Should still have only 1 entry (not duplicated)"
     );
 
-    println!("Duplicate space creation is idempotent - no DB duplication");
+    info!("Duplicate space creation is idempotent - no DB duplication");
 }
 
 #[tokio::test]
@@ -215,7 +216,7 @@ async fn test_create_space_no_directory_provided() {
     );
     assert_eq!(body["status"], "success");
 
-    println!("Space created with default directory");
+    info!("Space created with default directory");
 }
 
 #[tokio::test]
@@ -237,7 +238,7 @@ async fn test_create_space_empty_directory_string() {
         "Empty directory string should fail"
     );
 
-    println!("Empty directory string handled correctly");
+    info!("Empty directory string handled correctly");
 }
 
 #[tokio::test]
@@ -256,7 +257,7 @@ async fn test_create_space_relative_path() {
     assert_eq!(status, StatusCode::OK, "Relative path should be accepted");
     assert_eq!(body["status"], "success");
 
-    println!("Relative path handled correctly");
+    info!("Relative path handled correctly");
 
     // Cleanup
     let _ = std::fs::remove_dir_all("./test_space_relative");
@@ -287,7 +288,7 @@ async fn test_create_space_with_special_characters() {
         "Directory with special chars should be created"
     );
 
-    println!("Special characters handled: {}", dir_path);
+    info!("Special characters handled: {}", dir_path);
 }
 
 #[tokio::test]
@@ -328,7 +329,7 @@ async fn test_create_space_generates_deterministic_key() {
     assert_eq!(key1, space2.key, "Key should be deterministic");
     assert_eq!(id1, space2.id, "Should be the same database record");
 
-    println!("Deterministic key generation verified: {}", key1);
+    info!("Deterministic key generation verified: {}", key1);
 }
 
 #[tokio::test]
@@ -374,7 +375,7 @@ async fn test_create_space_different_directories_succeed() {
         "Different directories should have different keys"
     );
 
-    println!("Multiple different spaces created successfully in database");
+    info!("Multiple different spaces created successfully in database");
 }
 
 #[tokio::test]
@@ -395,7 +396,7 @@ async fn test_create_space_malformed_json() {
         status
     );
 
-    println!("Malformed JSON handled with status: {}", status);
+    info!("Malformed JSON handled with status: {}", status);
 }
 
 #[tokio::test]
@@ -428,5 +429,5 @@ async fn test_create_space_concurrent_requests() {
     assert_eq!(status1, StatusCode::OK, "First request should succeed");
     assert_eq!(status2, StatusCode::OK, "Second request should succeed");
 
-    println!("Concurrent requests handled successfully");
+    info!("Concurrent requests handled successfully");
 }

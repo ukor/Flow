@@ -1,5 +1,3 @@
-// back-end/node/src/modules/ssi/did/resolvers/traits.rs
-
 use ssi::dids::Document as DIDDocument;
 
 use super::super::types::{DocumentMetadata, ResolutionMetadata};

@@ -1,9 +1,9 @@
-// back-end/node/src/modules/ssi/did/resolvers/adapter.rs
-
 use async_trait::async_trait;
 use chrono::Utc;
 use ssi::dids::{AnyDidMethod as SsiResolver, DID, DIDResolver as SsiDIDResolver};
 use std::time::Instant;
+
+use crate::modules::ssi::did::resolvers::peer;
 
 use super::super::types::{
     DocumentMetadata, RegistryProof, ResolutionMetadata, ResolutionOptions, VdrInfo,
@@ -251,16 +251,22 @@ impl DidResolver {
         options: &ResolutionOptions,
     ) -> Result<ResolutionResult, ResolutionError> {
         let future = async {
-            let start = Instant::now();
+            // If a did:peer - handle locally
+            if did.starts_with("did:peer:") {
+                return peer::resolve_peer_did(did, options).await;
+            } else {
+                let start = Instant::now();
 
-            let did_ref = DID::new(did.as_bytes())
-                .map_err(|e| ResolutionError::InvalidDid(format!("Invalid DID format: {:?}", e)))?;
-            let ssi_options = Self::convert_options(options);
-            let ssi_output = self.inner.resolve_with(did_ref, ssi_options).await?;
+                let did_ref = DID::new(did.as_bytes()).map_err(|e| {
+                    ResolutionError::InvalidDid(format!("Invalid DID format: {:?}", e))
+                })?;
+                let ssi_options = Self::convert_options(options);
+                let ssi_output = self.inner.resolve_with(did_ref, ssi_options).await?;
 
-            let duration_ms = start.elapsed().as_millis() as u64;
+                let duration_ms = start.elapsed().as_millis() as u64;
 
-            Ok(Self::enrich_result(did, ssi_output, duration_ms, options))
+                Ok(Self::enrich_result(did, ssi_output, duration_ms, options))
+            }
         };
 
         if let Some(timeout_ms) = options.timeout_ms {
@@ -274,7 +280,7 @@ impl DidResolver {
 
     /// Get list of supported methods
     pub fn supported_methods(&self) -> Vec<&str> {
-        vec!["key", "jwk", "web", "pkh", "ethr", "ion", "tz"]
+        vec!["key", "jwk", "web", "pkh", "ethr", "ion", "tz", "peer"]
     }
 }
 
